@@ -72,6 +72,9 @@ details li{margin:3px 0}
 button,input[type=range],.float .grip{touch-action:manipulation}
 input[type=file]{max-width:100%}
 section{min-width:0}
+.openout{background:var(--warn-weak);color:var(--text);border:2px solid var(--warn);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.openout p{margin:0 0 10px;font-size:14px}
+.openbtn{display:block;text-align:center;background:var(--accent);color:#fff;font-weight:700;font-size:18px;padding:14px;border-radius:10px;text-decoration:none}
 .touch-only{display:none}
 @media (pointer:coarse){
   .touch-only{display:block}
@@ -95,6 +98,11 @@ section{min-width:0}
 </head>
 <body>
 <header>
+  <div class="openout" id="openOut" hidden>
+    <p><b>LINEの中で開いています。</b>LINEの中では映像を選べないことがあります。下のボタンで、スマホのブラウザに切り替えてください。</p>
+    <a class="openbtn" id="openOutBtn" href="#">ブラウザで開く</a>
+    <p class="muted" id="openOutNote" style="margin:6px 0 0"></p>
+  </div>
   <h1>泳ぎの映像計測（泳速度・ストロークタイム・ストローク長）</h1>
   <p>映像はお使いの端末（パソコン・スマホ）の中だけで再生します。インターネットには送りません。</p>
 </header>
@@ -322,6 +330,25 @@ section{min-width:0}
 (function(){
 document.documentElement.lang='ja';   // 公開ページでも日本語の字形で表示する
 const $=id=>document.getElementById(id);
+
+// ---- LINEの中で開いたときは、スマホのブラウザへ移るボタンを出す ----
+// Android：Chromeを指定して開く（Chromeがなければ、いつものブラウザ）
+// iPhone ：LINEの「openExternalBrowser=1」で、Safariなどいつものブラウザで開く
+function setupOpenOut(ua){
+  if(!/ Line\//i.test(ua||'')) return false;
+  const ext=location.origin+location.pathname+'?openExternalBrowser=1';
+  const android=/Android/i.test(ua);
+  $('openOutBtn').href=android
+    ? 'intent://'+location.host+location.pathname+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(ext)+';end'
+    : ext;
+  $('openOutBtn').textContent=android?'Chromeで開く':'Safariで開く';
+  $('openOutNote').textContent=android
+    ? '開かないときは、右上の「︙」から「他のアプリで開く」を選んでください。'
+    : '開かないときは、右下の「︙」または共有マークから「Safariで開く」を選んでください。';
+  $('openOut').hidden=false;
+  return true;
+}
+setupOpenOut(navigator.userAgent);
 const v=$('video');
 const hasRVFC='requestVideoFrameCallback' in HTMLVideoElement.prototype;
 let curT=0;            // 表示中のコマの時刻（秒）
