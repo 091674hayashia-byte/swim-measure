@@ -198,7 +198,7 @@ section{min-width:0}
         <li><b>注意</b>：カメラが目印の真横にないと、見る角度のずれで通過の判断がずれます。目印の真横から撮るのが理想です。スマートフォンの映像はコマの間隔が一定でないことがあります。時刻は映像に記録された各コマの時刻を使っています。</li>
         <li><b>個人情報</b>：「対象」には氏名ではなくID（例：A01）を入れてください。印は、使っている端末のブラウザにだけ保存されます（パソコンとスマホの間では共有されません）。</li>
         <li><b>選手に見せる結果</b>：タイム・ラップ・スタート／ターン／フィニッシュ・泳ぎの局面のストロークの値を、1枚の画像にまとめます。「画像を保存」でLINEに送れます。タイムはスタートからゴール（種目の距離）の通過まで、ラップは壁ごとの通過から求めます。練習の25 mも選べます。</li>
-        <li><b>結果を映像に重ねる</b>：左上にタイム、下にいまの区間の値（泳ぎの区間では泳速度・ストロークタイム・ストローク長・テンポ・ストローク数）、右上に通過や区間の結果の通知を出します。「結果入りの動画を作る」で、この表示を焼き込んだ動画（mp4）を作り、LINEに送れます。できた動画はその場で再生でき、「LINEなどで送る」で送り先にLINEを選べます。「端末に保存」は、iPhoneでは「ファイル」アプリの「ダウンロード」、Androidでは「ダウンロード」フォルダに入ります（写真アプリには入りません）。</li>
+        <li><b>結果を映像に重ねる</b>：左上にタイム、下にいまの区間の値（泳ぎの区間では泳速度・ストロークタイム・ストローク長・テンポ・ストローク数）、右上に通過や区間の結果の通知を出します。「結果入りの動画を作る」で、この表示を焼き込んだ動画（mp4）を作り、LINEに送れます。ゴールの1秒後からは、それまでの結果（タイム・ラップ・スタート／ターン／フィニッシュ・泳ぎの局面の泳速度・ストロークタイム・テンポ・ストローク長・ストローク数）をまとめた画面に切り替わり、動画の最後に約6秒映ります。できた動画はその場で再生でき、「LINEなどで送る」で送り先にLINEを選べます。「端末に保存」は、iPhoneでは「ファイル」アプリの「ダウンロード」、Androidでは「ダウンロード」フォルダに入ります（写真アプリには入りません）。</li>
         <li><b>スマホで使うとき</b>：映像の上の「スタート」「通過」「ストローク」ボタンと、映像の下のスライドバー・コマ送りボタンで操作します。ボタンは左の ⠿ を指でつかんで動かせます。iPhoneの映像（mov）は、Androidのスマホでは再生できないことがあります。</li>
       </ol>
     </details>
@@ -796,8 +796,73 @@ function buildOverlay(){
   ev.sort((a,b)=>a.t-b.t);
   OV={s0, pr, strokes, ev, total:S.total, finT:(Number.isFinite(S.total)&&s0!==null)?s0+S.total:null};
 }
-function drawOverlay(x,w,h,t){
+function drawOverlay(x,w,h,t,sumAlpha){
   if(!OV) return;
+  if(sumAlpha===undefined) sumAlpha=(OV.finT!==null)?Math.max(0,Math.min(1,(t-(OV.finT+1))/0.4)):0;   // ゴールの1秒後から、まとめを出す
+  drawOverlayParts(x,w,h,t);
+  if(sumAlpha>0) drawSummary(x,w,h,sumAlpha);
+}
+// ゴール後のまとめ画面：タイム・ラップ・スタート／ターン／フィニッシュ・泳ぎの局面の値をすべて出す
+function drawSummary(x,w,h,alpha){
+  const S=summary(), F='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif';
+  const L=[], R=[];
+  L.push({k:'title', a:cardTitle(S), b:S.pool+'（'+S.L+'m）・試技'+S.meta.trial+'・'+S.date});
+  L.push({k:'big', label:'タイム', val:Number.isFinite(S.total)?fmtT(S.total):'—'});
+  if(S.laps.length){ L.push({k:'head', t:'ラップ'}); L.push({k:'th', cells:['距離','通過タイム','ラップ'], xs:[0,.3,.65]});
+    S.laps.forEach(l=>L.push({k:'row', cells:[fmtD(l.d)+'m',fmtT(l.split),fmtT(l.lap)], xs:[0,.3,.65], hi:2})); }
+  const P=[];
+  if(S.start) P.push(['スタート（0–'+fmtD(S.start.d2)+'m）','',fmtT(S.start.dt)+' 秒']);
+  S.turns.forEach(o=>{ if(o.turn||o.in||o.out) P.push(['ターン'+o.n, [o.in?'イン '+fmtT(o.in.dt):'',o.out?'アウト '+fmtT(o.out.dt):''].filter(Boolean).join('／'), o.turn?fmtT(o.turn.dt)+' 秒':'—']); });
+  if(S.fin) P.push(['フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）','',fmtT(S.fin.dt)+' 秒']);
+  if(P.length){ R.push({k:'head', t:'スタート・ターン・フィニッシュ'}); P.forEach(p=>R.push({k:'row', cells:p, xs:[0,.42,1], hi:2, sub:1})); }
+  const sw=S.swims.filter(r=>Number.isFinite(r.vel));
+  if(sw.length){ const xs=[0,.25,.41,.58,.74,.9];
+    R.push({k:'head', t:'泳ぎ（ストローク）'});
+    R.push({k:'th2', cells:[['区間',''],['泳速度','m/秒'],['ストローク','タイム 秒'],['テンポ','回/分'],['ストローク長','m'],['ストローク','数']], xs});
+    sw.forEach(r=>R.push({k:'row', cells:[r.name.replace('泳ぎ','').replace(/[（）]/g,'')+' '+fmtD(r.d1)+'–'+fmtD(r.d2)+'m', f2(r.vel), f2(r.st), f1(r.tempo), f2(r.sl), Number.isFinite(r.n)?String(r.n):'—'], xs, small0:1}));
+  }
+  const H0={title:92,big:136,head:62,th:40,th2:58,row:44};
+  const land=w>=h*1.1, pad=Math.min(w,h)*0.04, u0=Math.min(w,h)/720;
+  const cols=land?[L,R]:[L.concat(R)], colW=land?(w-3*pad)/2:(w-2*pad);
+  const need=Math.max(...cols.map(c=>c.reduce((s,it)=>s+H0[it.k],0)))*u0;
+  const s=Math.min(1,(h-2*pad-30*u0)/need), u=u0*s;
+  x.save(); x.globalAlpha=alpha;
+  x.fillStyle='rgba(8,24,44,.9)'; x.fillRect(0,0,w,h);
+  x.textBaseline='alphabetic';
+  cols.forEach((col,ci)=>{
+    const cx=pad+ci*(colW+pad); let y=pad;
+    col.forEach(it=>{
+      const hgt=H0[it.k]*u;
+      if(it.k==='title'){ x.fillStyle='#ffffff'; x.font='700 '+(38*u)+'px '+F; x.textAlign='left'; x.fillText(it.a,cx,y+42*u,colW);
+        x.fillStyle='#9fb9d0'; x.font='400 '+(24*u)+'px '+F; x.fillText(it.b,cx,y+78*u,colW); }
+      else if(it.k==='big'){ x.fillStyle='#9fb9d0'; x.font='700 '+(26*u)+'px '+F; x.textAlign='left'; x.fillText(it.label,cx,y+30*u);
+        x.fillStyle='#ffffff'; x.font='800 '+(92*u)+'px '+F; x.fillText(it.val,cx,y+120*u);
+        if(it.val!=='—'){ const vw=x.measureText(it.val).width; x.fillStyle='#9fb9d0'; x.font='700 '+(32*u)+'px '+F; x.fillText('秒',cx+vw+10*u,y+120*u); } }
+      else if(it.k==='head'){ x.fillStyle='#5ec8d8'; x.font='700 '+(28*u)+'px '+F; x.textAlign='left'; x.fillText(it.t,cx,y+38*u);
+        x.fillStyle='rgba(255,255,255,.25)'; x.fillRect(cx,y+50*u,colW,2*u); }
+      else if(it.k==='th'||it.k==='th2'){ x.fillStyle='#9fb9d0'; x.textAlign='left';
+        it.cells.forEach((c,i)=>{ const tx=cx+it.xs[i]*colW, arr=Array.isArray(c)?c:[c,''];
+          const room=Math.max(10,(it.xs[i+1]!==undefined?it.xs[i+1]*colW:colW)-it.xs[i]*colW-6*u);
+          x.font='400 '+(20*u)+'px '+F; x.fillText(arr[0],tx,y+(it.k==='th2'?24:28)*u,room);
+          if(arr[1]){ x.font='400 '+(17*u)+'px '+F; x.fillText(arr[1],tx,y+46*u,room); } }); }
+      else if(it.k==='row'){
+        it.cells.forEach((c,i)=>{ const last=(it.xs[i]>=1), tx=last?cx+colW:cx+it.xs[i]*colW;
+          x.textAlign=last?'right':'left';
+          if(it.sub && i===1){ x.fillStyle='#9fb9d0'; x.font='400 '+(21*u)+'px '+F; }
+          else if(i===0){ x.fillStyle='#e6eef5'; x.font=(it.small0?'400 '+(22*u):'700 '+(26*u))+'px '+F; }
+          else { x.fillStyle=(i===it.hi)?'#5ec8d8':'#ffffff'; x.font='800 '+(28*u)+'px '+F; }
+          const room=last?colW*(1-(it.xs[i-1]||0))-8*u:((it.xs[i+1]!==undefined?it.xs[i+1]*colW:colW)-it.xs[i]*colW-8*u);
+          x.fillText(c,tx,y+32*u,Math.max(10,room));   // 欄からはみ出す長さは、文字を細めて収める
+        });
+        x.textAlign='left'; x.fillStyle='rgba(255,255,255,.08)'; x.fillRect(cx,y+hgt-2*u,colW,1*u);
+      }
+      y+=hgt;
+    });
+  });
+  x.fillStyle='#7f98ad'; x.font='400 '+(18*u0)+'px '+F; x.textAlign='right'; x.fillText('泳ぎの映像計測',w-pad,h-pad*0.6); x.textAlign='left';
+  x.restore();
+}
+function drawOverlayParts(x,w,h,t){
   const u=Math.min(w,h)/720, pad=16*u, F='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif';
   const box=(bx,by,bw,bh,fill)=>{ x.fillStyle=fill; x.beginPath(); if(x.roundRect) x.roundRect(bx,by,bw,bh,10*u); else x.rect(bx,by,bw,bh); x.fill(); };
   x.textBaseline='alphabetic'; x.textAlign='left';
@@ -888,7 +953,7 @@ $('bExport').onclick=async()=>{
   const sc=Math.min(1,longSide/Math.max(v.videoWidth,v.videoHeight));
   const W=Math.round(v.videoWidth*sc/2)*2, H=Math.round(v.videoHeight*sc/2)*2;
   const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
-  const paint=t=>{ x.drawImage(v,0,0,W,H); drawOverlay(x,W,H,t); };
+  const paint=(t,sa)=>{ x.drawImage(v,0,0,W,H); drawOverlay(x,W,H,t,sa); };
   let rec; try{ rec=new MediaRecorder(c.captureStream(30),{mimeType:mime, videoBitsPerSecond:bps}); }
   catch(e){ $('exMsg').textContent='この画面（ブラウザ）では動画を作れません。'; return; }
   const chunks=[]; rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
@@ -911,8 +976,9 @@ $('bExport').onclick=async()=>{
     v.requestVideoFrameCallback(tick); v.addEventListener('ended',resolve,{once:true});
   });
   v.pause(); v.playbackRate=parseFloat($('rate').value)||1;
-  // 最後の場面を1秒ほど止めて見せる
-  if(!exporting.stop){ const t=v.currentTime; for(let i=0;i<30;i++){ paint(t); await new Promise(r=>setTimeout(r,33)); } }
+  // 最後に、まとめ画面を6秒ほど出す（すでに出ていればそのまま、出ていなければ0.4秒でふわっと出す）
+  if(!exporting.stop){ const t=v.currentTime, a0=(OV&&OV.finT!==null)?Math.max(0,Math.min(1,(t-(OV.finT+1))/0.4)):0;
+    for(let i=0;i<180 && !exporting.stop;i++){ paint(t, Math.min(1,a0+i/12)); await new Promise(r=>setTimeout(r,33)); } }
   rec.stop(); await stopped;
   const cancelled=exporting.stop; exporting=null;
   $('bExport').disabled=false; $('bExportStop').hidden=true; $('exProg').hidden=true;
