@@ -198,7 +198,7 @@ section{min-width:0}
         <li><b>注意</b>：カメラが目印の真横にないと、見る角度のずれで通過の判断がずれます。目印の真横から撮るのが理想です。スマートフォンの映像はコマの間隔が一定でないことがあります。時刻は映像に記録された各コマの時刻を使っています。</li>
         <li><b>個人情報</b>：「対象」には氏名ではなくID（例：A01）を入れてください。印は、使っている端末のブラウザにだけ保存されます（パソコンとスマホの間では共有されません）。</li>
         <li><b>選手に見せる結果</b>：タイム・ラップ・スタート／ターン／フィニッシュ・泳ぎの局面のストロークの値を、1枚の画像にまとめます。「画像を保存」でLINEに送れます。タイムはスタートからゴール（種目の距離）の通過まで、ラップは壁ごとの通過から求めます。練習の25 mも選べます。</li>
-        <li><b>結果を映像に重ねる</b>：左上にタイム、下にいまの区間の値（泳ぎの区間では泳速度・ストロークタイム・ストローク長・テンポ・ストローク数）、右上に通過や区間の結果の通知を出します。「結果入りの動画を作る」で、この表示を焼き込んだ動画（mp4）を作り、LINEに送れます。</li>
+        <li><b>結果を映像に重ねる</b>：左上にタイム、下にいまの区間の値（泳ぎの区間では泳速度・ストロークタイム・ストローク長・テンポ・ストローク数）、右上に通過や区間の結果の通知を出します。「結果入りの動画を作る」で、この表示を焼き込んだ動画（mp4）を作り、LINEに送れます。できた動画はその場で再生でき、「LINEなどで送る」で送り先にLINEを選べます。「端末に保存」は、iPhoneでは「ファイル」アプリの「ダウンロード」、Androidでは「ダウンロード」フォルダに入ります（写真アプリには入りません）。</li>
         <li><b>スマホで使うとき</b>：映像の上の「スタート」「通過」「ストローク」ボタンと、映像の下のスライドバー・コマ送りボタンで操作します。ボタンは左の ⠿ を指でつかんで動かせます。iPhoneの映像（mov）は、Androidのスマホでは再生できないことがあります。</li>
       </ol>
     </details>
@@ -242,6 +242,7 @@ section{min-width:0}
     <h2>選手に見せる結果（LINE用）</h2>
     <div class="cardwrap"><canvas id="card" width="1080" height="1200" aria-label="計測結果のまとめ画像"></canvas></div>
     <div class="row">
+      <button class="primary" id="bCardShare" hidden>LINEなどで送る</button>
       <button class="primary" id="bCardSave">画像を保存</button>
       <button id="bCardCopy">画像をコピー</button>
       <button id="bTextCopy">文字でコピー</button>
@@ -255,6 +256,7 @@ section{min-width:0}
     <div class="row">
       <label>範囲 <select id="exRange"><option value="marks" selected>スタート1秒前〜最後の印の1秒後</option><option value="all">映像の全体</option></select></label>
       <label>速さ <select id="exRate"><option value="1" selected>等速</option><option value="0.5">1/2 スロー</option><option value="0.25">1/4 スロー</option></select></label>
+      <label>画質 <select id="exQ"><option value="line" selected>LINE向け（軽い）</option><option value="high">高画質（重い）</option></select></label>
     </div>
     <div class="row">
       <button class="primary" id="bExport">結果入りの動画を作る</button>
@@ -262,6 +264,14 @@ section{min-width:0}
       <span class="muted" id="exMsg"></span>
     </div>
     <progress id="exProg" max="1" value="0" hidden style="width:100%"></progress>
+    <div id="exDone" hidden style="margin-top:10px">
+      <video id="exVideo" controls playsinline muted style="width:100%;max-height:50vh;background:#000;border-radius:8px"></video>
+      <div class="row">
+        <button class="primary" id="bExShare" hidden>LINEなどで送る</button>
+        <button id="bExSave">端末に保存</button>
+      </div>
+      <p class="muted" id="exWhere" style="margin:6px 0 0"></p>
+    </div>
     <p class="muted" style="margin:6px 0 0">作っている間は映像が再生されます（動画の長さと同じ時間がかかります。スローならその分長くなります）。画面を閉じたり、別のアプリに切り替えたりしないでください。</p>
   </div>
 
@@ -727,10 +737,30 @@ async function saveBlob(name,blob,onFail){
     return;
   }
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
-  document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
+  document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },60000);
+  flashMsg('保存しました。'+whereSaved());
 }
 const cardBlob=()=>new Promise(r=>{ drawCard(); $('card').toBlob(r,'image/png'); });
 const cardName=()=>{ const m=readMeta(); return '計測結果_'+(m.subj||'ID未入力')+'_'+$('evDist').value+'m'+m.stroke+'_試技'+m.trial+'.png'; };
+// 共有（LINEなどへ送る）：ふつうのブラウザ（スマホのSafari・Chromeなど）で使える。claude.ai の公開ページでは使えない
+function canShareFile(name,blob){
+  if(window.claude) return false;
+  try{ return !!(navigator.canShare && navigator.share && navigator.canShare({files:[new File([blob],name,{type:blob.type})]})); }catch(e){ return false; }
+}
+async function shareFile(name,blob){
+  try{ await navigator.share({files:[new File([blob],name,{type:blob.type})]}); }
+  catch(e){ if(e && e.name==='AbortError') return; flashMsg('送る画面を開けませんでした。「保存」を使ってください。'); }
+}
+function whereSaved(){
+  const ua=navigator.userAgent||'';
+  if(/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints>1)) return 'iPhoneでは「ファイル」アプリの「ダウンロード」フォルダに入ります（写真アプリには入りません）。';
+  if(/Android/.test(ua)) return 'Androidでは「ファイル」アプリの「ダウンロード（Download）」フォルダに入ります。';
+  return 'パソコンでは「ダウンロード」フォルダに入ります。';
+}
+(async()=>{   // 画像の「LINEなどで送る」は、送れる環境でだけ出す
+  try{ const b=await cardBlob(); $('bCardShare').hidden=!canShareFile(cardName(),b); }catch(e){}
+})();
+$('bCardShare').onclick=async()=>{ const b=await cardBlob(); shareFile(cardName(),b); };
 $('bCardSave').onclick=async()=>{ const b=await cardBlob(); saveBlob(cardName(), b, ()=>flashMsg('この画面では画像を保存できませんでした。画像を長押しして保存するか、「文字でコピー」を使ってください。')); };
 $('bCardCopy').onclick=async()=>{
   try{ const b=await cardBlob(); await navigator.clipboard.write([new ClipboardItem({'image/png':b})]); flashMsg('画像をコピーしました。LINEのトークに貼り付けられます。'); }
@@ -854,11 +884,12 @@ $('bExport').onclick=async()=>{
   let a=0, b=v.duration;
   if($('exRange').value==='marks' && marks.length){ const ts=marks.map(m=>m.t); a=Math.max(0,Math.min(...ts)-1); b=Math.min(v.duration,Math.max(...ts)+1); }
   const rate=parseFloat($('exRate').value)||1;
-  const sc=Math.min(1,1280/Math.max(v.videoWidth,v.videoHeight));   // 長い辺を1280以下に（LINEで送りやすい大きさ）
+  const hq=$('exQ').value==='high', longSide=hq?1280:854, bps=hq?5000000:1500000;   // LINE向けは長い辺854・1.5Mbps（1分で約11MB）
+  const sc=Math.min(1,longSide/Math.max(v.videoWidth,v.videoHeight));
   const W=Math.round(v.videoWidth*sc/2)*2, H=Math.round(v.videoHeight*sc/2)*2;
   const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
   const paint=t=>{ x.drawImage(v,0,0,W,H); drawOverlay(x,W,H,t); };
-  let rec; try{ rec=new MediaRecorder(c.captureStream(30),{mimeType:mime, videoBitsPerSecond:5000000}); }
+  let rec; try{ rec=new MediaRecorder(c.captureStream(30),{mimeType:mime, videoBitsPerSecond:bps}); }
   catch(e){ $('exMsg').textContent='この画面（ブラウザ）では動画を作れません。'; return; }
   const chunks=[]; rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
   const stopped=new Promise(r=>{ rec.onstop=r; });
@@ -890,9 +921,15 @@ $('bExport').onclick=async()=>{
   const m=readMeta(), name='結果入り動画_'+(m.subj||'ID未入力')+'_'+$('evDist').value+'m'+m.stroke+'_試技'+m.trial+'.'+ext;
   $('exMsg').textContent='できました（'+(blob.size/1048576).toFixed(1)+' MB、'+ext+'形式）。'+(ext==='webm'?'webm形式はiPhoneのLINEで再生できないことがあります。':'');
   lastExport={name,blob};
-  saveBlob(name,blob,()=>{ $('exMsg').textContent+=' この画面では保存できませんでした。'; });
+  // できた動画をその場で見られるようにし、送る・保存するは、押してから行う（スマホは押した操作がないと共有・保存できない）
+  const ev=$('exVideo'); if(ev.dataset.url) URL.revokeObjectURL(ev.dataset.url);
+  ev.dataset.url=URL.createObjectURL(blob); ev.src=ev.dataset.url;
+  $('exDone').hidden=false; $('bExShare').hidden=!canShareFile(name,blob);
+  $('exWhere').textContent=$('bExShare').hidden?'「端末に保存」を押してください。'+whereSaved():'「LINEなどで送る」を押すと、送り先にLINEを選べます。「端末に保存」の保存先：'+whereSaved();
 };
 let lastExport=null;
+$('bExShare').onclick=()=>{ if(lastExport) shareFile(lastExport.name,lastExport.blob); };
+$('bExSave').onclick=()=>{ if(lastExport) saveBlob(lastExport.name,lastExport.blob,()=>flashMsg('この画面では保存できませんでした。')); };
 $('bExportStop').onclick=()=>{ if(exporting) exporting.stop=true; };
 
 // ---- 表示 ----
