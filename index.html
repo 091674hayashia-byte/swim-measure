@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>泳ぎの映像計測</title>
+<style>
+:root{--bg:#f5f6f8;--panel:#ffffff;--text:#1d2329;--sub:#5b6670;--line:#d9dee3;--accent:#1f6feb;--accent-weak:#e7efff;--pass:#0b7a5a;--pass-weak:#e3f5ee;--stroke:#b3541e;--stroke-weak:#fbece3;--warn:#8a5a00;--warn-weak:#fff4d6;--btn:#eef1f4}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181c;--panel:#1e2227;--text:#e6e9ec;--sub:#9aa5af;--line:#343a41;--accent:#5b9cff;--accent-weak:#1c2b44;--pass:#3cc597;--pass-weak:#163329;--stroke:#f08a4b;--stroke-weak:#3a2416;--warn:#e3b341;--warn-weak:#3a2f12;--btn:#2a2f35}}
+:root[data-theme="dark"]{--bg:#15181c;--panel:#1e2227;--text:#e6e9ec;--sub:#9aa5af;--line:#343a41;--accent:#5b9cff;--accent-weak:#1c2b44;--pass:#3cc597;--pass-weak:#163329;--stroke:#f08a4b;--stroke-weak:#3a2416;--warn:#e3b341;--warn-weak:#3a2f12;--btn:#2a2f35}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Yu Gothic UI","Meiryo","Hiragino Sans",sans-serif;font-size:15px;line-height:1.6}
+header{padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{margin:0;font-size:20px}
+header p{margin:2px 0 0;color:var(--sub);font-size:13px}
+main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);gap:16px;padding:16px 20px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:12px 16px}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px}
+.panel h2{margin:0 0 10px;font-size:16px}
+.video-wrap{background:#000;border-radius:8px;overflow:hidden;position:relative;min-height:200px;display:flex;align-items:center;justify-content:center}
+video{width:100%;max-height:70vh;display:block}
+.placeholder{color:#cfd6dc;padding:60px 20px;text-align:center;font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+button,select,input{font:inherit;color:var(--text)}
+button{background:var(--btn);border:1px solid var(--line);border-radius:7px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+button.big{padding:10px 16px;font-weight:700}
+button.pass{background:var(--pass-weak);border-color:var(--pass);color:var(--pass)}
+button.stroke{background:var(--stroke-weak);border-color:var(--stroke);color:var(--stroke)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+input[type=number],input[type=text],select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+input[type=number]{width:80px}
+.clock{font-variant-numeric:tabular-nums;font-size:15px;padding:4px 10px;border-radius:6px;background:var(--accent-weak)}
+.muted{color:var(--sub);font-size:13px}
+.kbd{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:12px;margin:0 2px;background:var(--btn)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:right;font-size:14px;white-space:nowrap}
+th{color:var(--sub);font-weight:600;font-size:13px}
+td.l,th.l{text-align:left}
+tr.clickable{cursor:pointer}
+tr.clickable:hover{background:var(--accent-weak)}
+.tag{display:inline-block;padding:0 7px;border-radius:10px;font-size:12px;font-weight:700}
+.tag.pass{background:var(--pass-weak);color:var(--pass)}
+.tag.stroke{background:var(--stroke-weak);color:var(--stroke)}
+.tag.start{background:var(--accent-weak);color:var(--accent)}
+button.start{background:var(--accent-weak);border-color:var(--accent);color:var(--accent)}
+.note{background:var(--warn-weak);color:var(--warn);border-radius:6px;padding:6px 10px;font-size:13px;margin-top:8px}
+.scroll{max-height:320px;overflow:auto}
+td input[type=number]{width:64px;padding:2px 4px}
+details summary{cursor:pointer;font-weight:700}
+details li{margin:3px 0}
+.seekbar{margin-top:8px}
+.seekbar input[type=range]{width:100%;margin:0;accent-color:var(--accent);cursor:pointer}
+.ticks{position:relative;height:12px;margin:0 8px}
+.ticks i{position:absolute;top:0;width:2px;height:12px;border-radius:1px;transform:translateX(-1px)}
+.ticks i.start{background:var(--accent)} .ticks i.pass{background:var(--pass)} .ticks i.stroke{background:var(--stroke);height:7px;top:5px}
+.seektime{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
+.float{position:absolute;left:12px;top:12px;z-index:5;display:none;gap:6px;align-items:center;padding:6px;border-radius:10px;background:rgba(20,24,28,.62);backdrop-filter:blur(2px);touch-action:none;user-select:none}
+.float.on{display:flex}
+.float .grip{color:#e6e9ec;cursor:grab;padding:4px 6px;font-size:16px;line-height:1}
+.float.dragging .grip{cursor:grabbing}
+.float button{padding:6px 10px;font-weight:700;font-size:14px;border-width:2px}
+.float button.start{background:#e7efff;color:#1f4fb0;border-color:#5b9cff}
+.float button.pass{background:#e3f5ee;color:#0b6a4e;border-color:#3cc597}
+.float button.stroke{background:#fbece3;color:#9a4518;border-color:#f08a4b}
+.float .kbd{background:rgba(255,255,255,.6);color:#1d2329}
+.ov{position:absolute;left:0;top:0;z-index:2;pointer-events:none}
+.cardwrap{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.cardwrap canvas{display:block;width:100%;height:auto}
+/* スマホ・タブレット向け */
+button,input[type=range],.float .grip{touch-action:manipulation}
+input[type=file]{max-width:100%}
+section{min-width:0}
+.touch-only{display:none}
+@media (pointer:coarse){
+  .touch-only{display:block}
+  .kbd{display:none}
+  .float .grip{padding:8px 10px;font-size:20px}
+}
+@media (max-width:600px){
+  header{padding:12px 16px}
+  header h1{font-size:17px}
+  .float .lg{display:none}
+  .float button{padding:8px 10px}
+  .ctrl{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .ctrl button{padding:10px 4px}
+  .ctrl #bPlay{grid-column:1/-1}
+  .ctrl label,.ctrl .clock{grid-column:1/-1}
+  button.big{width:100%}
+}
+.flash{animation:fl .5s}
+@keyframes fl{from{background:var(--accent-weak)}to{background:transparent}}
+</style>
+</head>
+<body>
+<header>
+  <h1>泳ぎの映像計測（泳速度・ストロークタイム・ストローク長）</h1>
+  <p>映像はお使いの端末（パソコン・スマホ）の中だけで再生します。インターネットには送りません。</p>
+</header>
+<main>
+<section>
+  <div class="panel">
+    <div class="row" style="margin-top:0">
+      <label><b>映像を選ぶ：</b> <input type="file" id="file" accept="video/*,.mp4,.mov,.m4v,.webm"></label>
+    </div>
+    <div class="note touch-only" style="margin-top:6px">
+      スマホで「ファイルを選択」を押しても選択画面が開かないときは、<b>LINEなどのアプリの中ではなく、Safari（iPhone）やChrome（Android）</b>でこのページを開いてください。LINEで届いたリンクは、右上（または右下）のメニューの「ブラウザで開く」「Safariで開く」などから開けます。アプリの中の画面では、ファイルを選べないことがあります。
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <span class="muted" id="loadMsg">映像ファイル（mp4、movなど）を選んでください。</span>
+    </div>
+    <div class="video-wrap">
+      <video id="video" playsinline muted></video>
+      <div class="placeholder" id="ph">ここに映像が表示されます</div>
+      <canvas class="ov" id="ov" aria-hidden="true"></canvas>
+      <div class="float" id="floatBar" title="左の ⠿ をつかむと、好きな場所へ動かせます">
+        <span class="grip" id="floatGrip" aria-label="ボタンを動かす">⠿</span>
+        <button class="start" data-mark="start">スタート<span class="lg">（0秒）にする</span> <span class="kbd">T</span></button>
+        <button class="pass" data-mark="pass">通過<span class="lg">記録</span> <span class="kbd">P</span></button>
+        <button class="stroke" data-mark="stroke">ストローク<span class="lg">記録</span> <span class="kbd">S</span></button>
+      </div>
+    </div>
+    <div class="seekbar">
+      <div class="ticks" id="ticks"></div>
+      <input type="range" id="seek" min="0" max="0" step="any" value="0" disabled aria-label="映像の時間を移動">
+      <div class="seektime"><span id="seekCur">0.000 秒</span><span id="seekDur">— 秒</span></div>
+    </div>
+    <div class="row ctrl">
+      <button id="bPlay" title="スペースキー">再生／停止</button>
+      <button id="bM10" title="Shift＋←">−10コマ</button>
+      <button id="bM1" title="←">−1コマ</button>
+      <button id="bP1" title="→">＋1コマ</button>
+      <button id="bP10" title="Shift＋→">＋10コマ</button>
+      <label class="muted">速さ
+        <select id="rate"><option value="0.1">0.1倍</option><option value="0.25">0.25倍</option><option value="0.5">0.5倍</option><option value="1" selected>1倍</option></select>
+      </label>
+      <span class="clock" id="clock">0.000 秒 ／ コマ 0</span>
+    </div>
+    <div class="row">
+      <label class="muted">1秒あたりのコマ数 <input type="number" id="fps" value="60" min="1" max="1000" step="any"></label>
+      <span class="muted" id="fpsEst">（再生すると自動で推定します）</span>
+      <button id="bFpsUse" disabled>推定値を使う</button>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="ovOn" checked> 結果を映像に重ねて表示する（タイム・区間の値・通過の通知）</label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>印をつける</h2>
+    <div class="row" style="margin-top:0">
+      <button class="big start" id="bStart">スタート（0秒）にする <span class="kbd">T</span></button>
+      <span class="muted" id="startInfo">スタートの合図（または壁を離れた瞬間）のコマで押すと、そこからの時間を表示します。</span>
+    </div>
+    <div class="row">
+      <button class="big pass" id="bPass">通過を記録 <span class="kbd">P</span></button>
+      <label>この通過の距離（スタートから） <input type="number" id="dist" value="15" step="any"> m</label>
+    </div>
+    <div class="row">
+      <label class="muted">記録したら次の距離へ
+        <select id="distMode"><option value="plan" selected>区切り地点の順（スタート・ターン・フィニッシュ）</option><option value="step">一定の間隔で</option></select>
+      </label>
+      <label class="muted" id="distStepWrap">間隔 <input type="number" id="distStep" value="5" step="any"> m</label>
+    </div>
+    <div class="row">
+      <button class="big stroke" id="bStroke">ストロークを記録 <span class="kbd">S</span></button>
+      <button id="bUndo">最後の印を取り消す <span class="kbd">Backspace</span></button>
+    </div>
+    <p class="muted" style="margin:10px 0 0">操作：映像の下のスライドバーで時間を移動、映像の上のボタンは左の <b>⠿</b> をつかんで好きな場所へ動かせます。<span class="kbd">T</span> スタート（0秒）、<span class="kbd">←</span><span class="kbd">→</span> 1コマ送り、<span class="kbd">Shift</span>＋<span class="kbd">←</span><span class="kbd">→</span> 10コマ送り、<span class="kbd">スペース</span> 再生／停止。表の行をクリックすると、その場面に戻ります。</p>
+  </div>
+
+  <div class="panel">
+    <details>
+      <summary>使い方と注意（はじめにお読みください）</summary>
+      <ol>
+        <li><b>撮影</b>：カメラを固定し、真横から撮ります。距離の目印（プール底のライン、コースロープの色の境目、15mのマークなど）が2つ以上映るようにします。できれば60コマ/秒以上で撮ります。</li>
+        <li><b>コマ数</b>：「1秒あたりのコマ数」を撮影の設定に合わせます。分からない場合は、映像を数秒再生すると推定値が出ます。</li>
+        <li><b>スタート</b>：スタートの合図（音・光）や、壁を離れた瞬間のコマで「スタート（0秒）にする」を押します。そこを0秒として、通過のタイムを表示します。押し直すと、新しいコマに置き換わります。スタートの位置は0 mとして、「スタート–最初の通過」の区間も計算します。</li>
+        <li><b>種目とプール</b>：種目の距離と、短水路（25 m）か長水路（50 m）かを選びます。局面の長さ（初めの設定：スタート15 m、ターンイン＝壁の手前5 m、ターンアウト＝壁から15 m、フィニッシュ＝最後の5 m）から、区切り地点を自動で作ります。例：短水路の100 mなら、15・20・25（壁）・40・45・50（壁）・65・70・75（壁）・90・95・100 m。</li>
+        <li><b>通過</b>：頭（または決めた体の部位）が区切り地点を通過したコマで「通過を記録」を押します。距離は<b>スタートからの距離</b>です（短水路の2往復目の10 mの目印は、40 m）。記録すると、次の区切り地点の距離に自動で進みます。距離は印の一覧で直せます。</li>
+        <li><b>ターンの壁</b>：壁（25 m、50 mなど）の印は、毎回<b>同じ場面</b>（例：足が壁に着いた瞬間、または手のタッチ）でつけます。ここでターンインとターンアウトを分けます。</li>
+        <li><b>ストローク</b>：毎回<b>同じ動作の瞬間</b>に印をつけます。
+          <ul>
+            <li>自由形・背泳ぎ：同じ側の手（例：右手）の入水だけ。左右1回ずつで1ストロークです。</li>
+            <li>バタフライ：両手の入水。</li>
+            <li>平泳ぎ：手を前に伸ばし切った瞬間など、毎回同じ場面。</li>
+          </ul>
+        </li>
+        <li><b>計算</b>：区間ごとに自動で計算します。
+          <ul>
+            <li>泳速度 ＝ 区間の距離 ÷ 通過にかかった時間</li>
+            <li>ストロークタイム ＝ 区間内の最初と最後のストロークの印の間の時間 ÷ ストローク数（例：印4つで3ストローク）</li>
+            <li>テンポ ＝ 60 ÷ ストロークタイム（回/分）</li>
+            <li>ストローク長 ＝ 泳速度 × ストロークタイム（1ストロークで進む距離）</li>
+          </ul>
+        </li>
+        <li><b>注意</b>：カメラが目印の真横にないと、見る角度のずれで通過の判断がずれます。目印の真横から撮るのが理想です。スマートフォンの映像はコマの間隔が一定でないことがあります。時刻は映像に記録された各コマの時刻を使っています。</li>
+        <li><b>個人情報</b>：「対象」には氏名ではなくID（例：A01）を入れてください。印は、使っている端末のブラウザにだけ保存されます（パソコンとスマホの間では共有されません）。</li>
+        <li><b>選手に見せる結果</b>：タイム・ラップ・スタート／ターン／フィニッシュ・泳ぎの局面のストロークの値を、1枚の画像にまとめます。「画像を保存」でLINEに送れます。タイムはスタートからゴール（種目の距離）の通過まで、ラップは壁ごとの通過から求めます。練習の25 mも選べます。</li>
+        <li><b>結果を映像に重ねる</b>：左上にタイム、下にいまの区間の値（泳ぎの区間では泳速度・ストロークタイム・ストローク長・テンポ・ストローク数）、右上に通過や区間の結果の通知を出します。「結果入りの動画を作る」で、この表示を焼き込んだ動画（mp4）を作り、LINEに送れます。</li>
+        <li><b>スマホで使うとき</b>：映像の上の「スタート」「通過」「ストローク」ボタンと、映像の下のスライドバー・コマ送りボタンで操作します。ボタンは左の ⠿ を指でつかんで動かせます。iPhoneの映像（mov）は、Androidのスマホでは再生できないことがあります。</li>
+      </ol>
+    </details>
+  </div>
+</section>
+
+<section>
+  <div class="panel">
+    <h2>試技の情報</h2>
+    <div class="row" style="margin-top:0">
+      <label>対象ID <input type="text" id="subj" placeholder="例：A01" style="width:100px"></label>
+      <label>泳法
+        <select id="stroke"><option>自由形</option><option>背泳ぎ</option><option>平泳ぎ</option><option>バタフライ</option><option>個人メドレー</option></select>
+      </label>
+      <label>試技 <input type="number" id="trial" value="1" min="1" style="width:60px"></label>
+    </div>
+    <div class="row"><label style="flex:1">メモ <input type="text" id="memo" style="width:100%"></label></div>
+  </div>
+
+  <div class="panel">
+    <h2>種目とプールの設定</h2>
+    <div class="row" style="margin-top:0">
+      <label>種目の距離
+        <select id="evDist"><option value="25">25 m</option><option value="50">50 m</option><option value="100" selected>100 m</option><option value="200">200 m</option><option value="400">400 m</option><option value="800">800 m</option><option value="1500">1500 m</option></select>
+      </label>
+      <label>プール
+        <select id="pool"><option value="25" selected>短水路（25 m）</option><option value="50">長水路（50 m）</option></select>
+      </label>
+    </div>
+    <div class="row">
+      <span class="muted">局面の長さ：</span>
+      <label class="muted">スタート 0〜<input type="number" id="phStart" value="15" min="0" step="any" style="width:56px"> m</label>
+      <label class="muted">ターンイン 壁の手前<input type="number" id="phIn" value="5" min="0" step="any" style="width:56px"> m</label>
+      <label class="muted">ターンアウト 壁から<input type="number" id="phOut" value="15" min="0" step="any" style="width:56px"> m</label>
+      <label class="muted">フィニッシュ 最後の<input type="number" id="phFin" value="5" min="0" step="any" style="width:56px"> m</label>
+    </div>
+    <div class="note" id="planInfo" style="background:var(--accent-weak);color:var(--text)"></div>
+  </div>
+
+  <div class="panel">
+    <h2>選手に見せる結果（LINE用）</h2>
+    <div class="cardwrap"><canvas id="card" width="1080" height="1200" aria-label="計測結果のまとめ画像"></canvas></div>
+    <div class="row">
+      <button class="primary" id="bCardSave">画像を保存</button>
+      <button id="bCardCopy">画像をコピー</button>
+      <button id="bTextCopy">文字でコピー</button>
+    </div>
+    <p class="muted" style="margin:6px 0 0">保存した画像を、LINEのトークに送れます。パソコンでは「画像をコピー」のあと、LINEのトークに貼り付けられます。「文字でコピー」は、結果を文章にしてコピーします。</p>
+    <div id="shareBox" hidden style="margin-top:8px">
+      <textarea id="shareText" readonly rows="8" style="width:100%;font:13px/1.5 inherit;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px"></textarea>
+    </div>
+    <h3 style="margin:16px 0 4px;font-size:15px">結果入りの動画</h3>
+    <p class="muted" style="margin:0">映像の上にタイム・区間の値・通過の通知を重ねた、新しい動画を作ります。動画はこの端末の中で作ります。</p>
+    <div class="row">
+      <label>範囲 <select id="exRange"><option value="marks" selected>スタート1秒前〜最後の印の1秒後</option><option value="all">映像の全体</option></select></label>
+      <label>速さ <select id="exRate"><option value="1" selected>等速</option><option value="0.5">1/2 スロー</option><option value="0.25">1/4 スロー</option></select></label>
+    </div>
+    <div class="row">
+      <button class="primary" id="bExport">結果入りの動画を作る</button>
+      <button id="bExportStop" hidden>中止</button>
+      <span class="muted" id="exMsg"></span>
+    </div>
+    <progress id="exProg" max="1" value="0" hidden style="width:100%"></progress>
+    <p class="muted" style="margin:6px 0 0">作っている間は映像が再生されます（動画の長さと同じ時間がかかります。スローならその分長くなります）。画面を閉じたり、別のアプリに切り替えたりしないでください。</p>
+  </div>
+
+  <div class="panel">
+    <h2>局面別の結果</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th class="l">局面</th><th>区間(m)</th><th>時間(秒)</th><th>泳速度<br>(m/秒)</th><th>ストローク<br>数</th><th>ストローク<br>タイム(秒)</th><th>テンポ<br>(回/分)</th><th>ストローク長<br>(m)</th></tr></thead>
+        <tbody id="phaseRes"></tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin:6px 0 0">区切り地点の両端に印（スタートまたは通過）があると表示します。ストロークの値は「泳ぎ」の局面だけ計算します。</p>
+  </div>
+
+  <div class="panel">
+    <h2>計算結果（印の間ごと）</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th class="l">区間</th><th>スタートから<br>(秒)</th><th>時間(秒)</th><th>泳速度<br>(m/秒)</th><th>ストローク<br>数</th><th>ストローク<br>タイム(秒)</th><th>テンポ<br>(回/分)</th><th>ストローク長<br>(m)</th></tr></thead>
+        <tbody id="res"><tr><td class="l muted" colspan="8">通過の印が2つ以上（スタートがあれば1つ以上）になると表示します。</td></tr></tbody>
+      </table>
+    </div>
+    <div id="resNote"></div>
+    <div class="row">
+      <button class="primary" id="bCsv">CSVに保存</button>
+      <button id="bClear">印をすべて消す</button>
+    </div>
+    <div id="csvBox" hidden style="margin-top:10px">
+      <p class="muted" id="csvMsg" style="margin:0 0 6px"></p>
+      <textarea id="csvText" readonly rows="6" style="width:100%;font:12px/1.4 monospace;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px"></textarea>
+      <div class="row"><button id="bCsvCopy">文字をコピー</button></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>印の一覧 <span class="muted" id="markCount"></span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th class="l">種類</th><th>距離(m)</th><th>コマ</th><th>スタートから(秒)</th><th>映像の時刻(秒)</th><th></th></tr></thead>
+        <tbody id="marks"><tr><td class="l muted" colspan="6">まだ印はありません。</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+(function(){
+document.documentElement.lang='ja';   // 公開ページでも日本語の字形で表示する
+const $=id=>document.getElementById(id);
+const v=$('video');
+const hasRVFC='requestVideoFrameCallback' in HTMLVideoElement.prototype;
+let curT=0;            // 表示中のコマの時刻（秒）
+let marks=[];          // 記録順 {id,type,t,dist}
+let nextId=1, fileKey=null, objUrl=null;
+let fpsSamples=[], lastMeta=null, fpsEstVal=null;
+
+const fps=()=>{const f=parseFloat($('fps').value);return f>0?f:60};
+const frameOf=t=>Math.round(t*fps());
+const f3=x=>Number.isFinite(x)?x.toFixed(3):'—';
+const f2=x=>Number.isFinite(x)?x.toFixed(2):'—';
+const f1=x=>Number.isFinite(x)?x.toFixed(1):'—';
+const startT=()=>{ const s=marks.find(m=>m.type==='start'); return s?s.t:null; };
+const rel=t=>{ const s=startT(); return s===null?NaN:t-s; };
+
+// ---- 保存（このブラウザのみ）----
+const SET_IDS=['evDist','pool','phStart','phIn','phOut','phFin','distMode'];
+function store(){ if(!fileKey) return; try{ const set={}; SET_IDS.forEach(id=>set[id]=$(id).value);
+  localStorage.setItem(fileKey, JSON.stringify({marks, nextId, meta:readMeta(), set, dist:$('dist').value, distStep:$('distStep').value, fps:$('fps').value})); }catch(e){} }
+function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; nextId=o.nextId||marks.length+1;
+  if(o.meta){$('subj').value=o.meta.subj||'';$('stroke').value=o.meta.stroke||'自由形';$('trial').value=o.meta.trial||1;$('memo').value=o.meta.memo||'';}
+  if(o.set) SET_IDS.forEach(id=>{ if(o.set[id]!==undefined) $(id).value=o.set[id]; });
+  if(o.dist) $('dist').value=o.dist; if(o.distStep) $('distStep').value=o.distStep; if(o.fps) $('fps').value=o.fps; return marks.length; }catch(e){ return 0; } }
+function readMeta(){ return {subj:$('subj').value.trim(), stroke:$('stroke').value, trial:$('trial').value, memo:$('memo').value}; }
+['subj','stroke','trial','memo','fps','dist','distStep'].forEach(id=>$(id).addEventListener('change',()=>{store();render();}));
+// 種目・プール・局面の長さを変えたら、区切り地点を作り直す。まだ通過の印がなければ、距離を最初の区切り地点に戻す
+SET_IDS.forEach(id=>$(id).addEventListener('change',()=>{
+  if(!marks.some(m=>m.type==='pass')){ const c=checkpoints(); $('dist').value=($('distMode').value==='plan'&&c.length)?c[0]:$('distStep').value; }
+  store(); render();
+}));
+
+// ---- 種目とプールから、局面と区切り地点を作る ----
+function num(id,def){ const x=parseFloat($(id).value); return Number.isFinite(x)&&x>=0?x:def; }
+function phases(){
+  const D=num('evDist',100), L=num('pool',25), s=num('phStart',15), ti=num('phIn',5), to=num('phOut',15), f=num('phFin',5);
+  const laps=Math.max(1,Math.ceil(D/L-1e-9)), out=[]; let turn=0;   // 長水路の25 mは、壁に着かずに25 mで終わる
+  for(let k=0;k<laps;k++){
+    const a=k*L, b=Math.min((k+1)*L,D), last=(k===laps-1);
+    const sw1=(k===0)?a+s:a+to, sw2=last?b-f:b-ti;
+    if(k===0 && s>0) out.push({kind:'start', name:'スタート', d1:a, d2:Math.min(b,a+s)});
+    if(sw2>sw1) out.push({kind:'swim', name:'泳ぎ（'+(k+1)+'本目）', d1:sw1, d2:sw2});
+    if(!last){ turn++;
+      if(ti>0) out.push({kind:'in', name:'ターン'+turn+' イン', d1:b-ti, d2:b, turn});
+      if(to>0) out.push({kind:'out', name:'ターン'+turn+' アウト', d1:b, d2:b+to, turn});
+      if(ti>0&&to>0) out.push({kind:'turn', name:'ターン'+turn+' 合計', d1:b-ti, d2:b+to, turn});
+    } else if(f>0) out.push({kind:'fin', name:'フィニッシュ', d1:b-f, d2:b});
+  }
+  return out;
+}
+function checkpoints(){
+  const set=new Set(); phases().forEach(p=>{ set.add(+p.d1.toFixed(3)); set.add(+p.d2.toFixed(3)); });
+  return [...set].filter(d=>d>0).sort((a,b)=>a-b);
+}
+// 壁（ラップの区切り）の距離：25, 50, 75 …と、種目の最後
+function wallDists(){
+  const D=num('evDist',100), L=num('pool',25), w=[];
+  for(let d=L; d<D-1e-9; d+=L) w.push(+d.toFixed(3));
+  w.push(D); return w;
+}
+function renderPlan(){
+  const D=num('evDist',100), L=num('pool',25), c=checkpoints();
+  const walls=wallDists();
+  const nL=walls.length;
+  const shown=c.slice(0,24).map(d=>walls.includes(d)?'<b>'+fmtD(d)+'（壁）</b>':fmtD(d)).join('・')+(c.length>24?' …（全'+c.length+'地点）':'');
+  $('planInfo').innerHTML=(L===25?'短水路':'長水路')+' '+D+' m（'+nL+'本・ターン'+(nL-1)+'回）　区切り地点（m）：'+shown;
+  $('distStepWrap').style.display=$('distMode').value==='step'?'':'none';
+}
+
+// ---- 映像の読み込み ----
+$('file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  if(objUrl) URL.revokeObjectURL(objUrl);
+  objUrl=URL.createObjectURL(f);
+  fileKey='swim-measure:'+f.name+':'+f.size;
+  marks=[]; nextId=1; fpsSamples=[]; fpsEstVal=null; $('fpsEst').textContent='（再生すると自動で推定します）'; $('bFpsUse').disabled=true;
+  let savedFps=false; try{ const s=localStorage.getItem(fileKey); savedFps=!!(s && JSON.parse(s).fps); }catch(e){}
+  const n=restore(); needProbe=!savedFps;
+  v.src=objUrl; $('ph').style.display='none';
+  $('loadMsg').textContent=n?('前回この映像につけた印を読み込みました（'+n+'件）。'):'映像を読み込みました。';
+  render();
+});
+v.addEventListener('loadeddata',()=>{ curT=v.currentTime; updateClock(); if(needProbe){ needProbe=false; probeFps(); } });
+// 読み込んだ直後に約1秒だけ再生して、映像のコマ数を調べる（設定を保存した映像は除く）
+let needProbe=false, probing=false;
+async function probeFps(){
+  if(!hasRVFC) return;
+  probing=true; $('fpsEst').textContent='（映像のコマ数を調べています…）';
+  v.playbackRate=1;
+  try{ await v.play(); }catch(e){ probing=false; $('fpsEst').textContent='（再生すると自動で推定します）'; return; }
+  setTimeout(()=>{
+    v.pause(); v.playbackRate=parseFloat($('rate').value); stepState=null; pendingT=null; v.currentTime=0; probing=false;
+    if(fpsEstVal){ $('bFpsUse').click(); $('loadMsg').textContent+=' 映像のコマ数を「約 '+$('fps').value+' コマ/秒」に設定しました。違う場合は直してください。'; }
+    else $('fpsEst').textContent='（推定できませんでした。撮影の設定を入れてください）';
+  },1300);
+}
+
+// ---- コマの時刻を正確に取る ----
+function onFrame(now,meta){
+  curT=meta.mediaTime;
+  if(!v.seeking){
+    pendingT=null;
+    let fixed=false;
+    marks.forEach(m=>{ if(m.fix){ if(Math.abs(m.t-curT)<0.75/fps()) m.t=curT; delete m.fix; fixed=true; } });
+    if(fixed){ store(); render(); }
+  }
+  if(!v.paused && lastMeta && meta.presentedFrames-lastMeta.presentedFrames===1){
+    const d=meta.mediaTime-lastMeta.mediaTime;
+    if(d>0.0005 && d<0.5){ fpsSamples.push(d); if(fpsSamples.length>120) fpsSamples.shift(); estimateFps(); }
+  }
+  lastMeta=meta; updateClock(); v.requestVideoFrameCallback(onFrame);
+}
+if(hasRVFC) v.requestVideoFrameCallback(onFrame);
+v.addEventListener('seeked',()=>{ if(!hasRVFC){ curT=v.currentTime; updateClock(); } setTimeout(afterSeek,120); });
+// コマ送りしても場面が変わらなかったとき（設定のコマ数が映像より多いときなど）は、変わるまで少しずつ進める
+function afterSeek(){
+  if(v.seeking) return;
+  const s=stepState;
+  if(s && s.dir && Math.abs(curT-s.from)<1e-6 && s.tries<12){
+    s.tries++; const dur=v.duration||0;
+    pendingT=Math.max(0,Math.min(dur-0.0001,(pendingT!==null?pendingT:curT)+s.dir/fps()));
+    if(pendingT>0 && pendingT<dur-0.001){ s.nudged=true; v.currentTime=Math.min(dur-0.0001,pendingT+0.25/fps()); return; }
+  }
+  if(s && s.nudged && !s.warned && Math.abs(curT-s.from)>1e-6){
+    flashMsg('「1秒あたりのコマ数」が映像より多い設定になっている可能性があります。再生して推定値を確かめてください。');
+  }
+  stepState=null; pendingT=null; updateClock();
+}
+v.addEventListener('timeupdate',()=>{ if(!hasRVFC){ curT=v.currentTime; updateClock(); } });
+v.addEventListener('pause',()=>{ lastMeta=null; });
+function estimateFps(){
+  if(fpsSamples.length<15) return;
+  const s=[...fpsSamples].sort((a,b)=>a-b), med=s[Math.floor(s.length/2)];
+  fpsEstVal=Math.round(1/med*100)/100;
+  $('fpsEst').textContent='（推定：約 '+fpsEstVal+' コマ/秒）'; $('bFpsUse').disabled=false;
+}
+$('bFpsUse').onclick=()=>{ if(fpsEstVal){ const r=Math.round(fpsEstVal); $('fps').value=Math.abs(r-fpsEstVal)<0.15?r:fpsEstVal; store(); render(); updateClock(); } };
+function updateClock(){
+  const r=rel(curT);
+  $('clock').textContent=(Number.isFinite(r)?'スタートから '+r.toFixed(3)+' 秒 ／ 映像 ':'')+curT.toFixed(3)+' 秒 ／ コマ '+frameOf(curT);
+  if(!seekDragging){ $('seek').value=curT; }
+  if(typeof liveOverlay==='function' && OV) liveOverlay();
+  $('seekCur').textContent=(Number.isFinite(r)?'スタートから '+r.toFixed(3)+' 秒 ／ ':'')+curT.toFixed(3)+' 秒';
+}
+
+// ---- 時間のスライドバー ----
+let seekDragging=false;
+v.addEventListener('loadedmetadata',()=>{
+  const s=$('seek'); s.max=v.duration||0; s.disabled=!(v.duration>0); s.value=0;
+  $('seekDur').textContent=(v.duration||0).toFixed(3)+' 秒'; $('floatBar').classList.add('on'); renderTicks();
+});
+$('seek').addEventListener('pointerdown',()=>{ seekDragging=true; });
+$('seek').addEventListener('input',()=>{ seekDragging=true; seekTo(parseFloat($('seek').value)); });
+$('seek').addEventListener('change',()=>{ seekDragging=false; });
+document.addEventListener('pointerup',()=>{ if(seekDragging) setTimeout(()=>{ seekDragging=false; updateClock(); },250); });
+function renderTicks(){   // スライドバーの上に、印の位置を細い線で示す
+  const box=$('ticks'), d=v.duration||0; box.innerHTML='';
+  if(!(d>0)) return;
+  marks.forEach(m=>{ const i=document.createElement('i'); i.className=m.type; i.style.left=(m.t/d*100)+'%'; box.appendChild(i); });
+}
+
+// ---- 映像の上のボタン（つかんで動かせる）----
+document.querySelectorAll('#floatBar button').forEach(b=>{
+  b.addEventListener('click',()=>{ addMark(b.dataset.mark); b.blur(); });
+});
+(function(){
+  const bar=$('floatBar'), grip=$('floatGrip'), wrap=bar.parentElement, KEY='swim-measure:floatPos';
+  function place(px,py){   // 位置は映像の枠に対する割合で持つ（枠の大きさが変わっても、はみ出さない）
+    const W=wrap.clientWidth, H=wrap.clientHeight, w=bar.offsetWidth, h=bar.offsetHeight;
+    const x=Math.max(0,Math.min(1,px)), y=Math.max(0,Math.min(1,py));
+    bar.style.left=Math.round(x*Math.max(0,W-w))+'px'; bar.style.top=Math.round(y*Math.max(0,H-h))+'px';
+    bar.dataset.px=x; bar.dataset.py=y;
+  }
+  let saved={px:0.02,py:0.5};   // 初めは左の中ほど（左上のタイム表示と重ならないように） try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&Number.isFinite(s.px)) saved=s; }catch(e){}
+  const apply=()=>place(parseFloat(bar.dataset.px??saved.px),parseFloat(bar.dataset.py??saved.py));
+  bar.dataset.px=saved.px; bar.dataset.py=saved.py;
+  new ResizeObserver(apply).observe(wrap); v.addEventListener('loadedmetadata',()=>setTimeout(apply,50));
+  let drag=null;
+  grip.addEventListener('pointerdown',e=>{
+    e.preventDefault(); try{ grip.setPointerCapture(e.pointerId); }catch(err){} bar.classList.add('dragging');
+    drag={x:e.clientX, y:e.clientY, l:bar.offsetLeft, t:bar.offsetTop};
+  });
+  grip.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    const W=wrap.clientWidth-bar.offsetWidth, H=wrap.clientHeight-bar.offsetHeight;
+    place(W>0?(drag.l+e.clientX-drag.x)/W:0, H>0?(drag.t+e.clientY-drag.y)/H:0);
+  });
+  const end=()=>{ if(!drag) return; drag=null; bar.classList.remove('dragging');
+    try{ localStorage.setItem(KEY, JSON.stringify({px:+bar.dataset.px, py:+bar.dataset.py})); }catch(e){} };
+  grip.addEventListener('pointerup',end); grip.addEventListener('pointercancel',end);
+})();
+
+// ---- 操作 ----
+let pendingT=null;   // 連打したときに、まだ表示されていない行き先のコマ
+let stepState=null;  // コマ送りの前のコマと向き（場面が変わらなかったときの補正用）
+function step(n){
+  if(!v.src) return; v.pause();
+  const dir=Math.sign(n);
+  if(!stepState) stepState={from:curT, dir, tries:0};
+  else if(stepState.dir!==dir) stepState.dir=0;   // 行ったり来たりしたときは補正しない
+  const base=(pendingT!==null)?pendingT:curT;
+  const dur=v.duration||0;
+  pendingT=Math.max(0,Math.min(dur-1/fps(),base+n/fps()));
+  v.currentTime=Math.min(dur-0.0001,pendingT+0.25/fps());
+}
+function seekTo(t){ if(!v.src) return; v.pause(); stepState=null; pendingT=Math.max(0,t); v.currentTime=pendingT+0.25/fps(); }
+$('bPlay').onclick=()=>{ if(!v.src) return; v.paused?v.play():v.pause(); };
+$('bM10').onclick=()=>step(-10); $('bM1').onclick=()=>step(-1); $('bP1').onclick=()=>step(1); $('bP10').onclick=()=>step(10);
+$('rate').onchange=()=>{ v.playbackRate=parseFloat($('rate').value); };
+
+function addMark(type){
+  if(!v.src){ flashMsg('先に映像を選んでください。'); return; }
+  v.pause();
+  const waiting=(pendingT!==null);   // まだ表示されていない行き先のコマに印をつける
+  const m={id:nextId++, type, t:waiting?pendingT:curT};
+  if(waiting) m.fix=true;            // 表示されたら、映像の正確な時刻に合わせ直す
+  if(type==='pass'){
+    const d=parseFloat($('dist').value); if(!Number.isFinite(d)){ flashMsg('通過の距離を入れてください。'); nextId--; return; }
+    m.dist=d;
+    if($('distMode').value==='plan'){ const nx=checkpoints().find(c=>c>d+1e-6); if(nx!==undefined) $('dist').value=nx; }
+    else { const st=parseFloat($('distStep').value); if(Number.isFinite(st)) $('dist').value=+(d+st).toFixed(3); }
+    if(d>num('evDist',100)+1e-6) flashMsg('種目の距離（'+$('evDist').value+' m）より先の距離です。距離を確かめてください。');
+  }
+  if(type==='start'){
+    const had=marks.some(x=>x.type==='start');
+    marks=marks.filter(x=>x.type!=='start');   // スタートは1つだけ。押し直すと置き換える
+    marks.push(m); store(); render(m.id); updateClock();
+    flashMsg(had?'スタートを、このコマに置き換えました。':'このコマをスタート（0秒）にしました。');
+    return;
+  }
+  const dup=marks.find(x=>x.type===type && Math.abs(x.t-m.t)<0.5/fps());
+  if(dup){ flashMsg('同じコマに同じ種類の印がすでにあるため、記録しませんでした。'); nextId--; return; }
+  marks.push(m); store(); render(m.id);
+}
+$('bStart').onclick=()=>addMark('start');
+function flashMsg(t){ const el=$('loadMsg'); el.textContent=t; el.style.color='var(--warn)'; clearTimeout(flashMsg.h); flashMsg.h=setTimeout(()=>{ el.style.color=''; },3000); }
+$('bPass').onclick=()=>addMark('pass');
+$('bStroke').onclick=()=>addMark('stroke');
+function undo(){ const m=marks.pop(); if(!m) return; if(m.type==='pass') $('dist').value=m.dist; store(); render(); updateClock(); }
+$('bUndo').onclick=undo;
+// 確認の小窓は公開ページで出ないため、「もう一度押すと消す」の2段階にする
+let clearArmed=null;
+$('bClear').onclick=()=>{
+  const b=$('bClear'); if(!marks.length) return;
+  if(!clearArmed){ b.textContent='もう一度押すと、すべて消します'; b.style.borderColor='var(--warn)'; b.style.color='var(--warn)';
+    clearArmed=setTimeout(()=>{ clearArmed=null; b.textContent='印をすべて消す'; b.style.borderColor=''; b.style.color=''; },4000); return; }
+  clearTimeout(clearArmed); clearArmed=null; b.textContent='印をすべて消す'; b.style.borderColor=''; b.style.color='';
+  marks=[]; store(); render(); flashMsg('印をすべて消しました。');
+};
+
+document.addEventListener('keydown',e=>{
+  const tag=(e.target.tagName||'').toLowerCase();
+  if((tag==='input' && e.target.type!=='range')||tag==='select'||tag==='textarea') return;
+  if(e.target.type==='range' && /^(Arrow|Page|Home|End)/.test(e.key)) e.preventDefault();   // スライドバーでも矢印はコマ送り
+  if(e.key==='ArrowRight'){ e.preventDefault(); step(e.shiftKey?10:1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); step(e.shiftKey?-10:-1); }
+  else if(e.key===' '){ e.preventDefault(); $('bPlay').click(); }
+  else if(e.key==='p'||e.key==='P'){ e.preventDefault(); addMark('pass'); }
+  else if(e.key==='s'||e.key==='S'){ e.preventDefault(); addMark('stroke'); }
+  else if(e.key==='t'||e.key==='T'){ e.preventDefault(); addMark('start'); }
+  else if(e.key==='Backspace'){ e.preventDefault(); undo(); }
+});
+
+// ---- 計算 ----
+function compute(){
+  const passes=marks.filter(m=>m.type==='pass').sort((a,b)=>a.t-b.t);
+  const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b);
+  const rows=[], notes=new Set();
+  const seg=(a,b,label)=>{
+    const dt=b.t-a.t, dd=b.dist-a.dist, vel=dt>0?dd/dt:NaN;
+    const s=strokes.filter(t=>t>=a.t-1e-9 && t<=b.t+1e-9), n=s.length;
+    const st=n>=2?(s[n-1]-s[0])/(n-1):NaN;
+    if(!(dd>0)) notes.add('距離が増えていない区間があります。通過の距離を確かめてください。');
+    if(n<2) notes.add('ストロークの印が2つ未満の区間は、ストロークタイムを計算できません。');
+    else if(n<4) notes.add('ストローク数が3未満の区間は、値が不安定になりやすいです。');
+    return {label, d1:a.dist, d2:b.dist, t1:a.t, t2:b.t, dt, vel, n:Math.max(0,n-1), st, tempo:60/st, sl:vel*st};
+  };
+  const s0=startT();
+  if(s0!==null && passes.length && passes[0].t>s0){   // スタート（0 m）から最初の通過まで。ストロークは計算しない
+    const b=passes[0], dt=b.t-s0;
+    rows.push({label:'スタート–'+fmtD(b.dist)+' m', d1:0, d2:b.dist, t1:s0, t2:b.t, dt, vel:dt>0?b.dist/dt:NaN, n:NaN, st:NaN, tempo:NaN, sl:NaN, fromStart:true});
+  }
+  for(let i=0;i<passes.length-1;i++) rows.push(seg(passes[i],passes[i+1], fmtD(passes[i].dist)+'–'+fmtD(passes[i+1].dist)+' m'));
+  if(passes.length>2) rows.push(Object.assign(seg(passes[0],passes[passes.length-1],'全体（'+fmtD(passes[0].dist)+'–'+fmtD(passes[passes.length-1].dist)+' m）'),{total:true}));
+  return {rows, notes:[...notes]};
+}
+const fmtD=d=>(Math.round(d*1000)/1000).toString();
+// 局面別：区切り地点の時刻（0 m はスタート、それ以外は同じ距離の通過の印）
+function timeAt(d){
+  if(Math.abs(d)<1e-6){ const s=startT(); if(s!==null) return s; }
+  const p=marks.find(m=>m.type==='pass' && Math.abs(m.dist-d)<1e-6); return p?p.t:null;
+}
+function computePhases(){
+  const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b), rows=[];
+  phases().forEach(p=>{
+    const t1=timeAt(p.d1), t2=timeAt(p.d2); if(t1===null||t2===null||!(t2>t1)) return;
+    const dt=t2-t1, vel=(p.d2-p.d1)/dt; let n=NaN, st=NaN;
+    if(p.kind==='swim'){ const s=strokes.filter(t=>t>=t1-1e-9&&t<=t2+1e-9); if(s.length>=2){ n=s.length-1; st=(s[s.length-1]-s[0])/n; } }
+    rows.push(Object.assign({}, p, {t1, t2, dt, vel, n, st, tempo:60/st, sl:vel*st}));
+  });
+  return rows;
+}
+
+// ---- 選手に見せる結果（画像・文章）----
+function fmtT(s){ if(!Number.isFinite(s)) return '—'; if(s>=60){ const m=Math.floor(s/60), r=s-m*60; return m+':'+r.toFixed(2).padStart(5,'0'); } return s.toFixed(2); }
+function summary(){
+  const meta=readMeta(), s0=startT(), D=num('evDist',100), L=num('pool',25);
+  const laps=[]; let prev=s0;
+  wallDists().forEach(d=>{ const t=timeAt(d);
+    laps.push({d, split:(t!==null&&s0!==null)?t-s0:NaN, lap:(t!==null&&prev!==null)?t-prev:NaN}); prev=t; });
+  const last=laps[laps.length-1], pr=computePhases();
+  const turns=[]; pr.filter(r=>r.turn).forEach(r=>{ let o=turns.find(x=>x.n===r.turn); if(!o){ o={n:r.turn}; turns.push(o); } o[r.kind]=r; });
+  return { meta, D, L, pool:(L===25?'短水路':'長水路'), total:(last&&last.d===D)?last.split:NaN,
+    laps:laps.filter(l=>Number.isFinite(l.split)), start:pr.find(r=>r.kind==='start'), fin:pr.find(r=>r.kind==='fin'),
+    turns, swims:pr.filter(r=>r.kind==='swim'), date:new Date().toLocaleDateString('ja-JP') };
+}
+function cardTitle(S){ return (S.meta.subj||'ID未入力')+'　'+S.D+'m '+S.meta.stroke; }
+function drawCard(){
+  const c=$('card'), x=c.getContext('2d'), S=summary(), W=1080, P=56;
+  const F='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif';
+  const NAVY='#0d3b66', TEAL='#1b8a9a', GRAY='#5b6670', LINE='#dfe4e8', TXT='#1d2329';
+  const phaseLines=[];
+  if(S.start) phaseLines.push(['スタート（0–'+fmtD(S.start.d2)+'m）','',S.start.dt]);
+  S.turns.forEach(t=>{ const tot=t.turn?t.turn.dt:NaN, det=[t.in?'イン '+fmtT(t.in.dt):'', t.out?'アウト '+fmtT(t.out.dt):''].filter(Boolean).join(' ／ ');
+    if(t.turn||t.in||t.out) phaseLines.push(['ターン'+t.n, det, tot]); });
+  if(S.fin) phaseLines.push(['フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）','',S.fin.dt]);
+  const swims=S.swims.filter(r=>Number.isFinite(r.vel));
+  let H=P+170+230;
+  if(S.laps.length) H+=90+44+S.laps.length*62;
+  if(phaseLines.length) H+=90+phaseLines.length*62;
+  if(swims.length) H+=90+swims.length*150;
+  H+=80; c.height=H;
+  x.fillStyle='#ffffff'; x.fillRect(0,0,W,H);
+  // 見出し
+  x.fillStyle=NAVY; x.fillRect(0,0,W,P+150);
+  x.fillStyle='#ffffff'; x.textBaseline='alphabetic'; x.textAlign='left';
+  x.font='700 54px '+F; x.fillText(cardTitle(S),P,P+62);
+  x.font='400 30px '+F; x.fillStyle='#cfe3f3'; x.fillText(S.pool+'（'+S.L+'m）・試技'+S.meta.trial+'・'+S.date,P,P+118);
+  let y=P+170+40;
+  // タイム
+  x.fillStyle=GRAY; x.font='700 32px '+F; x.fillText('タイム',P,y+30);
+  x.fillStyle=NAVY; x.font='800 120px '+F; x.fillText(fmtT(S.total),P,y+160);
+  if(Number.isFinite(S.total)){ const w=x.measureText(fmtT(S.total)).width; x.font='700 40px '+F; x.fillStyle=GRAY; x.fillText('秒',P+w+14,y+160); }
+  else { x.font='400 26px '+F; x.fillStyle=GRAY; x.fillText('スタートとゴール（'+S.D+'m）の印をつけると表示します',P+120,y+150); }
+  y+=230;
+  const head=t=>{ x.fillStyle=NAVY; x.font='700 36px '+F; x.fillText(t,P,y+44); x.fillStyle=LINE; x.fillRect(P,y+62,W-2*P,3); y+=90; };
+  // ラップ
+  if(S.laps.length){
+    head('ラップ');
+    x.font='400 24px '+F; x.fillStyle=GRAY;
+    x.fillText('距離',P,y+20); x.fillText('通過',P+170,y+20); x.fillText('ラップ',P+370,y+20); y+=44;
+    const mx=Math.max(...S.laps.map(l=>Number.isFinite(l.lap)?l.lap:0))||1, bx=P+560, bw=W-P-bx;
+    S.laps.forEach(l=>{
+      x.fillStyle=TXT; x.font='700 34px '+F; x.fillText(fmtD(l.d)+'m',P,y+38);
+      x.font='700 38px '+F; x.fillText(fmtT(l.split),P+170,y+38);
+      x.fillStyle=TEAL; x.font='700 38px '+F; x.fillText(fmtT(l.lap),P+370,y+38);
+      if(Number.isFinite(l.lap)){ x.fillStyle='#d6eef1'; x.fillRect(bx,y+10,bw,32); x.fillStyle=TEAL; x.fillRect(bx,y+10,Math.max(4,bw*l.lap/mx),32); }
+      y+=62;
+    });
+  }
+  // スタート・ターン・フィニッシュ
+  if(phaseLines.length){
+    head('スタート・ターン・フィニッシュ');
+    phaseLines.forEach(([n,d,v])=>{
+      x.textAlign='left'; x.fillStyle=TXT; x.font='700 32px '+F; x.fillText(n,P,y+38);
+      if(d){ x.fillStyle=GRAY; x.font='400 26px '+F; x.fillText(d,P+300,y+38); }
+      x.textAlign='right'; x.fillStyle=NAVY; x.font='800 40px '+F; x.fillText(fmtT(v)+' 秒',W-P,y+40); x.textAlign='left';
+      y+=62;
+    });
+  }
+  // 泳ぎの局面のストローク
+  if(swims.length){
+    head('泳ぎ（ストローク）');
+    const tiles=[['泳速度','m/秒',r=>f2(r.vel)],['ストローク数','回',r=>Number.isFinite(r.n)?String(r.n):'—'],['ストロークタイム','秒',r=>f2(r.st)],['テンポ','回/分',r=>f1(r.tempo)],['ストローク長','m',r=>f2(r.sl)]];
+    const tw=(W-2*P)/tiles.length;
+    swims.forEach(r=>{
+      x.fillStyle=GRAY; x.font='700 26px '+F; x.fillText(r.name.replace('泳ぎ','')+'　'+fmtD(r.d1)+'–'+fmtD(r.d2)+'m',P,y+26);
+      tiles.forEach(([lab,unit,fn],i)=>{ const tx=P+i*tw;
+        x.fillStyle='#f2f6f9'; x.fillRect(tx+4,y+40,tw-8,96);
+        x.fillStyle=GRAY; x.font='400 21px '+F; x.fillText(lab,tx+16,y+68);
+        x.fillStyle=TXT; x.font='800 38px '+F; const val=fn(r); x.fillText(val,tx+16,y+118);
+        if(val!=='—'){ const w=x.measureText(val).width; x.fillStyle=GRAY; x.font='400 20px '+F; x.fillText(unit,tx+22+w,y+118); }
+      });
+      y+=150;
+    });
+  }
+  x.fillStyle=GRAY; x.font='400 22px '+F; x.textAlign='right';
+  x.fillText('泳ぎの映像計測　（1秒あたり'+fps()+'コマ・頭の通過で計測）',W-P,H-32); x.textAlign='left';
+}
+function summaryText(){
+  const S=summary(), L=[];
+  L.push('【計測結果】'+cardTitle(S)+'（'+S.pool+'）');
+  L.push(S.date+'　試技'+S.meta.trial);
+  L.push('■タイム '+(Number.isFinite(S.total)?fmtT(S.total)+'秒':'—'));
+  if(S.laps.length){ L.push('■ラップ（通過／ラップ）'); S.laps.forEach(l=>L.push('　'+fmtD(l.d)+'m　'+fmtT(l.split)+'／'+fmtT(l.lap))); }
+  if(S.start) L.push('■スタート（0–'+fmtD(S.start.d2)+'m）'+fmtT(S.start.dt)+'秒');
+  S.turns.forEach(t=>{ const d=[t.in?'イン'+fmtT(t.in.dt):'', t.out?'アウト'+fmtT(t.out.dt):''].filter(Boolean).join('／');
+    if(t.turn||t.in||t.out) L.push('■ターン'+t.n+' '+(t.turn?fmtT(t.turn.dt)+'秒':'')+(d?'（'+d+'）':'')); });
+  if(S.fin) L.push('■フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）'+fmtT(S.fin.dt)+'秒');
+  S.swims.filter(r=>Number.isFinite(r.vel)).forEach(r=>{
+    L.push('■'+r.name+' '+fmtD(r.d1)+'–'+fmtD(r.d2)+'m');
+    L.push('　泳速度 '+f2(r.vel)+'m/秒'+(Number.isFinite(r.n)?'　ストローク数 '+r.n+'回':''));
+    if(Number.isFinite(r.st)) L.push('　ストロークタイム '+f2(r.st)+'秒　テンポ '+f1(r.tempo)+'回/分　ストローク長 '+f2(r.sl)+'m');
+  });
+  return L.join('\n');
+}
+// 保存：公開ページではページの保存機能、パソコンで直接開いたときは普通のダウンロード
+async function saveBlob(name,blob,onFail){
+  if(window.claude && typeof window.claude.use==='function'){
+    let dl=null; try{ dl=await window.claude.use('downloads'); }catch(e){}
+    if(!dl){ onFail&&onFail(); return; }
+    try{ await dl.save({filename:name, data:blob}); flashMsg('保存しました。'); }
+    catch(e){ if(e && e.code==='declined') flashMsg('保存を取りやめました。'); else onFail&&onFail(); }
+    return;
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
+}
+const cardBlob=()=>new Promise(r=>{ drawCard(); $('card').toBlob(r,'image/png'); });
+const cardName=()=>{ const m=readMeta(); return '計測結果_'+(m.subj||'ID未入力')+'_'+$('evDist').value+'m'+m.stroke+'_試技'+m.trial+'.png'; };
+$('bCardSave').onclick=async()=>{ const b=await cardBlob(); saveBlob(cardName(), b, ()=>flashMsg('この画面では画像を保存できませんでした。画像を長押しして保存するか、「文字でコピー」を使ってください。')); };
+$('bCardCopy').onclick=async()=>{
+  try{ const b=await cardBlob(); await navigator.clipboard.write([new ClipboardItem({'image/png':b})]); flashMsg('画像をコピーしました。LINEのトークに貼り付けられます。'); }
+  catch(e){ flashMsg('この画面では画像をコピーできません。「画像を保存」を使ってください。'); }
+};
+$('bTextCopy').onclick=()=>{
+  const t=$('shareText'); t.value=summaryText(); $('shareBox').hidden=false;
+  const fallback=()=>{ t.focus(); t.select(); flashMsg('文章を選びました。コピーしてLINEに貼り付けてください。'); };
+  try{ navigator.clipboard.writeText(t.value).then(()=>flashMsg('文章をコピーしました。LINEに貼り付けられます。'),fallback); }catch(e){ fallback(); }
+};
+
+// ---- 映像に重ねる結果（画面の表示と、動画づくりで同じ絵を使う）----
+let OV=null;   // render() のたびに作り直す
+function buildOverlay(){
+  const s0=startT(), pr=computePhases(), walls=wallDists(), S=summary();
+  const passes=marks.filter(m=>m.type==='pass').sort((a,b)=>a.t-b.t);
+  const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b);
+  const ev=[];   // 通知：その時刻から2.5秒（映像の時間）表示する
+  passes.forEach(p=>{
+    if(s0===null||p.t<s0) return;
+    const isWall=walls.some(w=>Math.abs(w-p.dist)<1e-6), lap=S.laps.find(l=>Math.abs(l.d-p.dist)<1e-6);
+    ev.push({t:p.t, kind:isWall?'wall':'pass', title:fmtD(p.dist)+'m 通過　'+fmtT(p.t-s0),
+      body:(isWall&&lap&&Number.isFinite(lap.lap))?'ラップ '+fmtT(lap.lap):''});
+  });
+  pr.forEach(r=>{
+    if(r.kind==='out') return;   // アウトは、ターン合計の通知に入れる
+    let body;
+    if(r.kind==='swim') body='泳速度 '+f2(r.vel)+' m/秒'+(Number.isFinite(r.st)?'　ストロークタイム '+f2(r.st)+' 秒　ストローク長 '+f2(r.sl)+' m':'');
+    else if(r.kind==='turn'){ const t=S.turns.find(o=>o.n===r.turn); body=fmtT(r.dt)+' 秒'+(t&&t.in&&t.out?'（イン '+fmtT(t.in.dt)+' ／ アウト '+fmtT(t.out.dt)+'）':''); }
+    else body=fmtT(r.dt)+' 秒';
+    ev.push({t:r.t2, kind:r.kind, title:r.name, body});
+  });
+  ev.sort((a,b)=>a.t-b.t);
+  OV={s0, pr, strokes, ev, total:S.total, finT:(Number.isFinite(S.total)&&s0!==null)?s0+S.total:null};
+}
+function drawOverlay(x,w,h,t){
+  if(!OV) return;
+  const u=Math.min(w,h)/720, pad=16*u, F='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif';
+  const box=(bx,by,bw,bh,fill)=>{ x.fillStyle=fill; x.beginPath(); if(x.roundRect) x.roundRect(bx,by,bw,bh,10*u); else x.rect(bx,by,bw,bh); x.fill(); };
+  x.textBaseline='alphabetic'; x.textAlign='left';
+  // 左上：タイム
+  if(OV.s0!==null){
+    let label='タイム', val;
+    if(t<OV.s0-1e-6){ label='スタート前'; val='0.00'; }
+    else if(OV.finT!==null && t>=OV.finT-1e-6){ label='ゴール'; val=fmtT(OV.total); }
+    else val=fmtT(t-OV.s0);
+    x.font='800 '+(64*u)+'px '+F; const vw=x.measureText(val).width;
+    box(pad,pad,Math.max(vw,120*u)+40*u,118*u,'rgba(13,59,102,.85)');
+    x.fillStyle='#cfe3f3'; x.font='700 '+(24*u)+'px '+F; x.fillText(label,pad+20*u,pad+34*u);
+    x.fillStyle='#ffffff'; x.font='800 '+(64*u)+'px '+F; x.fillText(val,pad+20*u,pad+100*u);
+  }
+  // 下：いまの区間とその値
+  const cur=OV.pr.find(r=>r.kind!=='turn' && t>=r.t1-1e-6 && t<r.t2-1e-6);
+  if(cur){
+    const swim=cur.kind==='swim', bh=(swim?150:100)*u, by=h-bh-pad, bw=w-2*pad;
+    box(pad,by,bw,bh,'rgba(0,0,0,.62)');
+    x.fillStyle='#9fd8e0'; x.font='700 '+(26*u)+'px '+F; x.fillText(cur.name+'　'+fmtD(cur.d1)+'–'+fmtD(cur.d2)+'m',pad+20*u,by+38*u);
+    if(swim){
+      const n=OV.strokes.filter(s=>s>=cur.t1-1e-9 && s<=t+1e-9).length;
+      let items=[['泳速度',f2(cur.vel),'m/秒'],['ストロークタイム',f2(cur.st),'秒'],['ストローク長',f2(cur.sl),'m'],['テンポ',f1(cur.tempo),'回/分'],['ストローク数',String(Math.max(0,n-1)),'回']];
+      if(w<h*1.2) items=items.slice(0,3);   // 縦長の映像では3つに絞る
+      const tw=(bw-40*u)/items.length, vs=Math.min(46*u,tw/4.4);
+      items.forEach(([lab,val,unit],i)=>{ const tx=pad+20*u+i*tw;
+        x.fillStyle='#c8d2da'; x.font='400 '+Math.min(20*u,tw/8)+'px '+F; x.fillText(lab,tx,by+74*u);
+        x.fillStyle='#ffffff'; x.font='800 '+vs+'px '+F; x.fillText(val,tx,by+128*u);
+        if(val!=='—'){ const vw=x.measureText(val).width; x.fillStyle='#c8d2da'; x.font='400 '+(vs*0.45)+'px '+F; x.fillText(unit,tx+vw+6*u,by+128*u); }
+      });
+    } else {
+      x.fillStyle='#ffffff'; x.font='800 '+(42*u)+'px '+F; x.fillText(fmtT(t-cur.t1)+' 秒',pad+20*u,by+86*u);
+    }
+  }
+  // 右上：通知（通過・区間の結果）
+  const act=OV.ev.filter(e=>t>=e.t-1e-6 && t<e.t+2.5).slice(-3);
+  const maxW=(w>=h)?w*0.6:w-2*pad;
+  let ny=(OV.s0!==null && w-2*pad-maxW<300*u)?pad+130*u:pad;   // 縦長の映像では、タイムの下に出す
+  act.forEach(e=>{
+    const age=t-e.t, alpha=age>2.1?Math.max(0,(2.5-age)/0.4):1;
+    x.font='400 '+(22*u)+'px '+F;
+    const words=e.body?e.body.split('　'):[], lines=[]; let line='';
+    words.forEach(wd=>{ const tryL=line?line+'　'+wd:wd; if(x.measureText(tryL).width>maxW-44*u && line){ lines.push(line); line=wd; } else line=tryL; });
+    if(line) lines.push(line);
+    x.font='700 '+(28*u)+'px '+F; let bwid=x.measureText(e.title).width;
+    x.font='400 '+(22*u)+'px '+F; lines.forEach(l=>{ bwid=Math.max(bwid,x.measureText(l).width); });
+    bwid=Math.min(maxW,bwid+44*u); const bh=(48+lines.length*30)*u, bx=w-pad-bwid;
+    x.globalAlpha=alpha;
+    box(bx,ny,bwid,bh,'rgba(255,255,255,.94)');
+    x.fillStyle=e.kind==='swim'?'#e0702d':e.kind==='wall'?'#1b8a9a':'#0d3b66'; x.fillRect(bx,ny+8*u,7*u,bh-16*u);
+    x.fillStyle='#0d3b66'; x.font='700 '+(28*u)+'px '+F; x.fillText(e.title,bx+20*u,ny+38*u);
+    x.fillStyle='#1d2329'; x.font='400 '+(22*u)+'px '+F; lines.forEach((l,i)=>x.fillText(l,bx+20*u,ny+(70+i*30)*u));
+    x.globalAlpha=1; ny+=bh+10*u;
+  });
+}
+function liveOverlay(){
+  const c=$('ov');
+  if(!$('ovOn').checked || !(v.videoWidth>0)){ c.style.display='none'; return; }
+  c.style.display='block';
+  const ew=v.clientWidth, eh=v.clientHeight; if(!ew||!eh) return;
+  const s=Math.min(ew/v.videoWidth, eh/v.videoHeight), cw=v.videoWidth*s, ch=v.videoHeight*s;
+  c.style.left=(v.offsetLeft+(ew-cw)/2)+'px'; c.style.top=(v.offsetTop+(eh-ch)/2)+'px'; c.style.width=cw+'px'; c.style.height=ch+'px';
+  const dpr=window.devicePixelRatio||1, W=Math.round(cw*dpr), H=Math.round(ch*dpr);
+  if(c.width!==W||c.height!==H){ c.width=W; c.height=H; }
+  const x=c.getContext('2d'); x.clearRect(0,0,W,H); drawOverlay(x,W,H,curT);
+}
+$('ovOn').addEventListener('change',liveOverlay);new ResizeObserver(()=>liveOverlay()).observe(v);
+
+// ---- 結果入りの動画を作る（この端末の中で、再生しながら録画する）----
+let exporting=null;
+function pickMime(){
+  if(typeof MediaRecorder==='undefined' || !HTMLCanvasElement.prototype.captureStream) return null;
+  const types=['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  return types.find(t=>{ try{ return MediaRecorder.isTypeSupported(t); }catch(e){ return false; } })||null;
+}
+const seekAndWait=t=>new Promise(r=>{ let done=false; const fin=()=>{ if(!done){ done=true; setTimeout(r,120); } };
+  v.addEventListener('seeked',fin,{once:true}); setTimeout(fin,2000); v.currentTime=t; });
+$('bExport').onclick=async()=>{
+  if(exporting) return;
+  if(!v.src || !(v.duration>0)){ flashMsg('先に映像を選んでください。'); return; }
+  const mime=pickMime();
+  if(!mime){ $('exMsg').textContent='この画面（ブラウザ）では動画を作れません。パソコンのChromeやEdgeで試してください。'; return; }
+  const ext=mime.startsWith('video/mp4')?'mp4':'webm';
+  let a=0, b=v.duration;
+  if($('exRange').value==='marks' && marks.length){ const ts=marks.map(m=>m.t); a=Math.max(0,Math.min(...ts)-1); b=Math.min(v.duration,Math.max(...ts)+1); }
+  const rate=parseFloat($('exRate').value)||1;
+  const sc=Math.min(1,1280/Math.max(v.videoWidth,v.videoHeight));   // 長い辺を1280以下に（LINEで送りやすい大きさ）
+  const W=Math.round(v.videoWidth*sc/2)*2, H=Math.round(v.videoHeight*sc/2)*2;
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+  const paint=t=>{ x.drawImage(v,0,0,W,H); drawOverlay(x,W,H,t); };
+  let rec; try{ rec=new MediaRecorder(c.captureStream(30),{mimeType:mime, videoBitsPerSecond:5000000}); }
+  catch(e){ $('exMsg').textContent='この画面（ブラウザ）では動画を作れません。'; return; }
+  const chunks=[]; rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+  const stopped=new Promise(r=>{ rec.onstop=r; });
+  exporting={stop:false};
+  $('bExport').disabled=true; $('bExportStop').hidden=false; $('exProg').hidden=false; $('exProg').value=0;
+  $('exMsg').textContent='動画を作っています…（'+((b-a)/rate).toFixed(0)+'秒ほど）';
+  v.pause(); stepState=null; pendingT=null;
+  await seekAndWait(a); paint(v.currentTime);
+  rec.start(500);
+  v.playbackRate=rate;
+  try{ await v.play(); }catch(e){}
+  await new Promise(resolve=>{
+    const tick=(now,meta)=>{
+      if(exporting.stop){ resolve(); return; }
+      paint(meta.mediaTime); $('exProg').value=Math.min(1,(meta.mediaTime-a)/(b-a));
+      if(meta.mediaTime>=b-1e-3){ resolve(); return; }
+      v.requestVideoFrameCallback(tick);
+    };
+    v.requestVideoFrameCallback(tick); v.addEventListener('ended',resolve,{once:true});
+  });
+  v.pause(); v.playbackRate=parseFloat($('rate').value)||1;
+  // 最後の場面を1秒ほど止めて見せる
+  if(!exporting.stop){ const t=v.currentTime; for(let i=0;i<30;i++){ paint(t); await new Promise(r=>setTimeout(r,33)); } }
+  rec.stop(); await stopped;
+  const cancelled=exporting.stop; exporting=null;
+  $('bExport').disabled=false; $('bExportStop').hidden=true; $('exProg').hidden=true;
+  if(cancelled){ $('exMsg').textContent='中止しました。'; return; }
+  const blob=new Blob(chunks,{type:mime.split(';')[0]});
+  const m=readMeta(), name='結果入り動画_'+(m.subj||'ID未入力')+'_'+$('evDist').value+'m'+m.stroke+'_試技'+m.trial+'.'+ext;
+  $('exMsg').textContent='できました（'+(blob.size/1048576).toFixed(1)+' MB、'+ext+'形式）。'+(ext==='webm'?'webm形式はiPhoneのLINEで再生できないことがあります。':'');
+  lastExport={name,blob};
+  saveBlob(name,blob,()=>{ $('exMsg').textContent+=' この画面では保存できませんでした。'; });
+};
+let lastExport=null;
+$('bExportStop').onclick=()=>{ if(exporting) exporting.stop=true; };
+
+// ---- 表示 ----
+function render(flashId){
+  const sorted=[...marks].sort((a,b)=>a.t-b.t);
+  const s0=startT();
+  $('startInfo').textContent=s0===null?'スタートの合図（または壁を離れた瞬間）のコマで押すと、そこからの時間を表示します。':('スタート：映像の '+s0.toFixed(3)+' 秒（コマ '+frameOf(s0)+'）。押し直すと置き換わります。');
+  $('markCount').textContent=marks.length?('（通過 '+marks.filter(m=>m.type==='pass').length+'、ストローク '+marks.filter(m=>m.type==='stroke').length+'）'):'';
+  const mb=$('marks'); mb.innerHTML='';
+  if(!sorted.length){ mb.innerHTML='<tr><td class="l muted" colspan="6">まだ印はありません。</td></tr>'; }
+  sorted.forEach(m=>{
+    const tr=document.createElement('tr'); tr.className='clickable'+(m.id===flashId?' flash':'');
+    const tdType=document.createElement('td'); tdType.className='l';
+    tdType.innerHTML=m.type==='pass'?'<span class="tag pass">通過</span>':m.type==='start'?'<span class="tag start">スタート</span>':'<span class="tag stroke">ストローク</span>';
+    const tdD=document.createElement('td');
+    if(m.type==='pass'){ const inp=document.createElement('input'); inp.type='number'; inp.step='any'; inp.value=m.dist;
+      inp.onclick=e=>e.stopPropagation(); inp.onchange=()=>{ const d=parseFloat(inp.value); if(Number.isFinite(d)){ m.dist=d; store(); render(); } }; tdD.appendChild(inp); }
+    const tdF=document.createElement('td'); tdF.textContent=frameOf(m.t);
+    if(m.type==='start') tdD.textContent='0';
+    const tdR=document.createElement('td'); tdR.textContent=f3(rel(m.t));
+    const tdT=document.createElement('td'); tdT.textContent=m.t.toFixed(3);
+    const tdX=document.createElement('td'); const del=document.createElement('button'); del.textContent='削除'; del.style.padding='1px 8px';
+    del.onclick=e=>{ e.stopPropagation(); marks=marks.filter(x=>x.id!==m.id); store(); render(); updateClock(); }; tdX.appendChild(del);
+    tr.append(tdType,tdD,tdF,tdR,tdT,tdX); tr.onclick=()=>seekTo(m.t); mb.appendChild(tr);
+  });
+  const {rows,notes}=compute(), rb=$('res'); rb.innerHTML='';
+  if(!rows.length){ rb.innerHTML='<tr><td class="l muted" colspan="8">通過の印が2つ以上（スタートがあれば1つ以上）になると表示します。</td></tr>'; }
+  rows.forEach(r=>{
+    const tr=document.createElement('tr'); if(r.total) tr.style.fontWeight='700';
+    [[r.label,'l'],[f3(rel(r.t2))],[f3(r.dt)],[f2(r.vel)],[r.n||'—'],[f2(r.st)],[f1(r.tempo)],[f2(r.sl)]].forEach(([x,c])=>{ const td=document.createElement('td'); if(c) td.className=c; td.textContent=x; tr.appendChild(td); });
+    rb.appendChild(tr);
+  });
+  $('resNote').innerHTML=notes.map(n=>'<div class="note">'+n+'</div>').join('');
+  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay();
+  const pr=computePhases(), pb=$('phaseRes'); pb.innerHTML='';
+  if(!pr.length){ pb.innerHTML='<tr><td class="l muted" colspan="8">区切り地点に印をつけると表示します。</td></tr>'; }
+  pr.forEach(r=>{
+    const tr=document.createElement('tr'); if(r.kind==='turn') tr.style.fontWeight='700';
+    [[r.name,'l'],[fmtD(r.d1)+'–'+fmtD(r.d2)],[f3(r.dt)],[f2(r.vel)],[Number.isFinite(r.n)?r.n:'—'],[f2(r.st)],[f1(r.tempo)],[f2(r.sl)]].forEach(([x,c])=>{ const td=document.createElement('td'); if(c) td.className=c; td.textContent=x; tr.appendChild(td); });
+    pb.appendChild(tr);
+  });
+}
+
+// ---- CSV ----
+const q=x=>{ const s=String(x??''); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+$('bCsv').onclick=()=>{
+  if(!marks.length){ flashMsg('印がありません。'); return; }
+  const meta=readMeta(), {rows}=compute(), L=[];
+  const s0=startT(), bl=x=>Number.isFinite(x)?x:'';
+  L.push(['対象ID',meta.subj],['泳法',meta.stroke],['試技',meta.trial],['メモ',meta.memo],['種目の距離(m)',$('evDist').value],['プール',$('pool').value==='25'?'短水路（25 m）':'長水路（50 m）'],['局面の長さ(m)','スタート '+$('phStart').value+'／ターンイン '+$('phIn').value+'／ターンアウト '+$('phOut').value+'／フィニッシュ '+$('phFin').value],['1秒あたりのコマ数',fps()],['スタートの映像時刻(秒)',s0===null?'未設定':s0.toFixed(4)],['作成日',new Date().toLocaleString('ja-JP')],[]);
+  L.push(['局面別の結果（時刻はスタートからの秒）']);
+  L.push(['局面','開始距離(m)','終了距離(m)','開始時刻(秒)','終了時刻(秒)','時間(秒)','泳速度(m/秒)','ストローク数','ストロークタイム(秒)','テンポ(回/分)','ストローク長(m)']);
+  computePhases().forEach(r=>L.push([r.name,r.d1,r.d2,f3(rel(r.t1)).replace('—',''),f3(rel(r.t2)).replace('—',''),f3(r.dt),f3(r.vel),bl(r.n),f3(r.st).replace('—',''),f2(r.tempo).replace('—',''),f3(r.sl).replace('—','')]));
+  L.push([]);
+  L.push(['計算結果・印の間ごと（時刻はスタートからの秒。スタート未設定のときは空欄）']);
+  L.push(['区間','開始距離(m)','終了距離(m)','開始時刻(秒)','終了時刻(秒)','時間(秒)','泳速度(m/秒)','ストローク数','ストロークタイム(秒)','テンポ(回/分)','ストローク長(m)','映像の開始時刻(秒)','映像の終了時刻(秒)']);
+  rows.forEach(r=>L.push([r.label,r.d1,r.d2,f3(rel(r.t1)).replace('—',''),f3(rel(r.t2)).replace('—',''),f3(r.dt),f3(r.vel),bl(r.n),f3(r.st).replace('—',''),f2(r.tempo).replace('—',''),f3(r.sl).replace('—',''),f3(r.t1),f3(r.t2)]));
+  L.push([]); L.push(['印の一覧']); L.push(['種類','距離(m)','コマ','スタートから(秒)','映像の時刻(秒)']);
+  [...marks].sort((a,b)=>a.t-b.t).forEach(m=>{ const r=rel(m.t); L.push([m.type==='pass'?'通過':m.type==='start'?'スタート':'ストローク',m.type==='pass'?m.dist:m.type==='start'?0:'',frameOf(m.t),Number.isFinite(r)?r.toFixed(4):'',m.t.toFixed(4)]); });
+  const csv='﻿'+L.map(r=>r.map(q).join(',')).join('\r\n');
+  const name='映像計測_'+(meta.subj||'ID未入力')+'_'+$('evDist').value+'m'+meta.stroke+'_'+($('pool').value==='25'?'短水路':'長水路')+'_試技'+meta.trial+'.csv';
+  saveCsv(name,csv);
+};
+// claude.ai に公開したページでは、ページの保存機能を使う。パソコンで直接開いたときは、普通のダウンロード
+async function saveCsv(name,csv){
+  $('csvBox').hidden=true;
+  if(window.claude && typeof window.claude.use==='function'){
+    let dl=null; try{ dl=await window.claude.use('downloads'); }catch(e){}
+    if(dl){
+      try{ await dl.save({filename:name, data:csv}); flashMsg('CSVを保存しました。'); }
+      catch(e){ if(e && e.code==='declined') flashMsg('保存を取りやめました。'); else showCsvText(csv,'この画面では保存できませんでした。下の文字をコピーして使ってください。'); }
+      return;
+    }
+    showCsvText(csv,'この画面では保存できません。下の文字をコピーして、メモやExcelに貼り付けてください。'); return;
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=name;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
+}
+function showCsvText(csv,msg){ $('csvMsg').textContent=msg; $('csvText').value=csv.replace(/^﻿/,''); $('csvBox').hidden=false; }
+$('bCsvCopy').onclick=()=>{
+  const t=$('csvText');
+  const fallback=()=>{ t.focus(); t.select(); flashMsg('文字を選びました。コピーしてください。'); };
+  try{ navigator.clipboard.writeText(t.value).then(()=>flashMsg('コピーしました。'),fallback); }catch(e){ fallback(); }
+};
+
+render();
+})();
+</script>
+</body>
+</html>
