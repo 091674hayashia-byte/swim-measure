@@ -76,12 +76,6 @@ details li{margin:3px 0}
 .zbar span{color:#e6e9ec;font-size:12px;min-width:36px;text-align:center;font-variant-numeric:tabular-nums}
 .float button.ur{background:#f1f3f5;color:#1d2329;border-color:#aab3bb;font-size:17px;padding:5px 9px}
 .float button.ur:disabled{opacity:.45}
-.refgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px;margin-top:8px}
-.refgrid label{display:flex;flex-direction:column;font-size:13px;color:var(--sub);gap:2px}
-.refgrid input{width:100%;box-sizing:border-box}
-td.good{color:#0b7a4b;font-weight:700} td.bad{color:#c0392b;font-weight:700}
-.advice{white-space:pre-wrap;line-height:1.7;background:var(--accent-weak);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:14px}
-.brk{margin:8px 0 0;padding-left:1.2em} .brk li{margin:3px 0}
 #video.zoomed{cursor:grab} #video.panning{cursor:grabbing}
 .ticks i.auto{background:#d9a441}
 .tag.auto{background:#fff1cc;color:#7a5200}
@@ -358,45 +352,6 @@ section{min-width:0}
         <tbody id="marks"><tr><td class="l muted" colspan="6">まだ印はありません。</td></tr></tbody>
       </table>
     </div>
-  </div>
-
-  <div class="panel">
-    <h2>トップ選手との比較と助言</h2>
-    <p class="muted" style="margin:0">日本選手権などのレース分析の値を、<b>比べる相手</b>として入れると、この試技との差と、その内訳を出します。入れた値は<b>この端末の中だけ</b>に保存し、ほかの人には配られません（日本水泳連盟のレース分析データは、複製・再配布が禁止されています）。</p>
-    <details id="refEdit" style="margin-top:8px">
-      <summary>比べる相手の値を入れる</summary>
-      <div class="refgrid">
-        <label style="grid-column:1/-1">名前（例：2025日本選手権 決勝1位）<input type="text" id="rfLabel" maxlength="80"></label>
-        <label>タイム（秒）<input type="number" id="rfTotal" step="any" min="0"></label>
-        <label><span>スタート（秒）<span class="muted" id="rfStartLbl"></span></span><input type="number" id="rfStart" step="any" min="0"></label>
-        <label><span>ターン1回あたり（秒）<span class="muted" id="rfTurnLbl"></span></span><input type="number" id="rfTurn" step="any" min="0"></label>
-        <label><span>フィニッシュ（秒）<span class="muted" id="rfFinLbl"></span></span><input type="number" id="rfFin" step="any" min="0"></label>
-        <label>泳ぎの区間の泳速度（m/秒）<input type="number" id="rfVel" step="any" min="0"></label>
-        <label>ストロークタイム（秒）<input type="number" id="rfSt" step="any" min="0"></label>
-        <label>ストローク長（m）<input type="number" id="rfSl" step="any" min="0"></label>
-      </div>
-      <p class="muted" style="margin:6px 0 0">種目は、いまの「種目とプールの設定」と「泳ぎ方」で保存します。空いている欄はとばして比べます。泳速度・ストロークタイム・ストローク長は、2つ入れれば残りを計算します。<b>局面の距離（スタート何m・ターン何mなど）と、ストロークの数え方は、比べる相手のデータと同じにしてください。</b></p>
-      <div class="row"><button id="bRefSave">この値を保存</button><span class="muted" id="refMsg"></span></div>
-    </details>
-    <div class="row">
-      <label>比べる相手 <select id="refSel"></select></label>
-      <button id="bRefDel" disabled>この相手を消す</button>
-    </div>
-    <div class="scroll" style="margin-top:8px">
-      <table>
-        <thead><tr><th class="l">項目</th><th>この試技</th><th>比べる相手</th><th>差</th><th>割合</th></tr></thead>
-        <tbody id="cmpBody"></tbody>
-      </table>
-    </div>
-    <ul class="brk" id="cmpBrk"></ul>
-    <div class="row" id="aiRow" hidden>
-      <button class="big start" id="bAi">AIに指導の助言を書いてもらう</button>
-      <button id="bAiStop" hidden>止める</button>
-      <button id="bAiCopy" hidden>助言をコピー</button>
-    </div>
-    <label id="aiNoteWrap" hidden style="display:block;margin-top:6px;font-size:13px;color:var(--sub)">選手について伝えたいこと（任意。例：高校2年、後半に失速しやすい）<input type="text" id="aiNote" maxlength="200" style="width:100%;box-sizing:border-box"></label>
-    <p class="muted" id="aiInfo" style="margin:6px 0 0"></p>
-    <div class="advice" id="aiOut" hidden></div>
   </div>
 
   <div class="panel">
@@ -1271,7 +1226,7 @@ function render(flashId){
     rb.appendChild(tr);
   });
   $('resNote').innerHTML=notes.map(n=>'<div class="note">'+n+'</div>').join('');
-  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay(); renderCmp();
+  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay();
   const pr=computePhases(), pb=$('phaseRes'); pb.innerHTML='';
   if(!pr.length){ pb.innerHTML='<tr><td class="l muted" colspan="8">区切り地点に印をつけると表示します。</td></tr>'; }
   pr.forEach(r=>{
@@ -1539,157 +1494,6 @@ v.addEventListener('loadedmetadata',()=>{ $('zoomBar').classList.add('on'); setT
   v.addEventListener('pointerup',end); v.addEventListener('pointercancel',end);
   v.addEventListener('wheel',e=>{ if(!v.src||!e.ctrlKey) return; e.preventDefault(); const p=loc(e); zoomAt(zoom.s*Math.exp(-e.deltaY*0.01),p.x,p.y); },{passive:false});
 })();
-
-// ---- トップ選手との比較（比べる相手は、この端末の中だけに保存）----
-var REF_KEY='swim-measure:refs', aiCtl=null, aiSample=null;
-function loadRefs(){ try{ const a=JSON.parse(localStorage.getItem(REF_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function saveRefs(a){ try{ localStorage.setItem(REF_KEY,JSON.stringify(a)); return true; }catch(e){ return false; } }
-const nv=id=>{ const x=parseFloat($(id).value); return Number.isFinite(x)&&x>0?x:null; };
-function curEv(){ return {D:num('evDist',100), L:num('pool',25), stroke:$('stroke').value}; }
-function refEvText(r){ return r.D+'m '+r.stroke+'（'+(+r.L===25?'短水路':'長水路')+'）'; }
-function myVals(){   // この試技の値（泳ぎの区間は時間の重みつき平均）
-  const S=summary(), sw=S.swims.filter(r=>fin(r.vel));
-  const swD=sw.reduce((a,r)=>a+(r.d2-r.d1),0), swT=sw.reduce((a,r)=>a+r.dt,0), vel=swT>0?swD/swT:NaN;
-  const sr=sw.filter(r=>fin(r.st)), wt=sr.reduce((a,r)=>a+r.dt,0), st=wt>0?sr.reduce((a,r)=>a+r.st*r.dt,0)/wt:NaN;
-  const tt=S.turns.map(t=>t.turn?t.turn.dt:NaN).filter(fin);
-  return {S, total:S.total, start:S.start?S.start.dt:NaN, turn:tt.length?tt.reduce((a,b)=>a+b,0)/tt.length:NaN, nTurn:tt.length, fin:S.fin?S.fin.dt:NaN,
-    vel, st, tempo:60/st, sl:vel*st};
-}
-function phaseLbls(){ const ps=phases(), st=ps.find(p=>p.kind==='start'), tu=ps.find(p=>p.kind==='turn'), fi=ps.find(p=>p.kind==='fin');
-  return {start:st?'0–'+fmtD(st.d2)+'m':'', turn:tu?'壁の前'+fmtD(num('phIn',5))+'m＋後'+fmtD(num('phOut',15))+'m':'', fin:fi?'最後の'+fmtD(fi.d2-fi.d1)+'m':''}; }
-function renderRefSel(){
-  const refs=loadRefs(), sel=$('refSel'), keep=sel.value, ev=curEv();
-  const same=r=>+r.D===ev.D&&+r.L===ev.L&&r.stroke===ev.stroke;
-  sel.innerHTML='';
-  const o0=document.createElement('option'); o0.value=''; o0.textContent=refs.length?'（選んでください）':'（まだありません。上で値を入れてください）'; sel.appendChild(o0);
-  [...refs].sort((a,b)=>(same(b)-same(a))||(b.saved>a.saved?1:-1)).forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=(same(r)?'':'【別の種目】')+r.label+'（'+refEvText(r)+'）'; sel.appendChild(o); });
-  if(keep && [...sel.options].some(o=>o.value===keep)) sel.value=keep;
-  else { const first=refs.find(same); sel.value=first?String(first.id):''; }
-  $('bRefDel').disabled=!sel.value;
-}
-function curRef(){ const id=$('refSel').value; return loadRefs().find(r=>String(r.id)===id)||null; }
-function cmpRows(){
-  const me=myVals(), rf=curRef(); if(!rf) return {me, rf, rows:[]};
-  const rows=[ // [名前, 自分, 相手, 単位, 小さいほど良い, 小数]
-    ['タイム', me.total, rf.total, '秒', true, 2],
-    ['スタート'+(phaseLbls().start?'（'+phaseLbls().start+'）':''), me.start, rf.start, '秒', true, 2],
-    ['ターン1回あたり'+(me.nTurn>1?'（'+me.nTurn+'回の平均）':''), me.turn, rf.turn, '秒', true, 2],
-    ['フィニッシュ'+(phaseLbls().fin?'（'+phaseLbls().fin+'）':''), me.fin, rf.fin, '秒', true, 2],
-    ['泳ぎの区間の泳速度', me.vel, rf.vel, 'm/秒', false, 2],
-    ['ストロークタイム', me.st, rf.st, '秒', true, 2],
-    ['テンポ', me.tempo, fin(rf.st)?60/rf.st:NaN, '回/分', false, 1],
-    ['ストローク長', me.sl, rf.sl, 'm', false, 2],
-  ];
-  return {me, rf, rows};
-}
-function breakdown(me, rf){   // 差の内訳（計算）
-  const out=[];
-  if(fin(me.vel)&&fin(rf.vel)&&fin(me.st)&&fin(rf.st)&&fin(me.sl)&&fin(rf.sl)){
-    const lv=Math.log(me.vel/rf.vel), ll=Math.log(me.sl/rf.sl), lr=Math.log(rf.st/me.st);   // 泳速度 ＝ ストローク長 × ストローク頻度
-    const pc=x=>(x>=0?'+':'')+((Math.exp(x)-1)*100).toFixed(1)+'%';
-    out.push('泳ぎの区間の泳速度は相手より '+pc(lv)+'。泳速度＝ストローク長×テンポなので、その内訳は <b>ストローク長 '+pc(ll)+'</b>、<b>テンポ '+pc(lr)+'</b>。'
-      +(Math.abs(ll)>Math.abs(lr)?' 差の主な原因は<b>ストローク長</b>（1回でどれだけ進むか）です。':' 差の主な原因は<b>テンポ</b>（腕の回転の速さ）です。'));
-  }
-  const parts=[]; let sum=0;
-  if(fin(me.start)&&fin(rf.start)){ const d=me.start-rf.start; parts.push(['スタート',d]); sum+=d; }
-  if(fin(me.turn)&&fin(rf.turn)&&me.nTurn){ const d=(me.turn-rf.turn)*me.nTurn; parts.push(['ターン（'+me.nTurn+'回分）',d]); sum+=d; }
-  if(fin(me.fin)&&fin(rf.fin)){ const d=me.fin-rf.fin; parts.push(['フィニッシュ',d]); sum+=d; }
-  if(fin(me.total)&&fin(rf.total)){
-    const tot=me.total-rf.total, swim=tot-sum;
-    if(parts.length) parts.push(['泳ぎの区間（残り）',swim]);
-    out.push('タイムの差 '+(tot>=0?'+':'')+tot.toFixed(2)+' 秒'+(parts.length?'の内訳：'+parts.map(([n,d])=>n+' '+(d>=0?'+':'')+d.toFixed(2)+'秒').join('、')+'。':'。')+(parts.length?' いちばん大きいのは<b>'+parts.reduce((a,b)=>Math.abs(b[1])>Math.abs(a[1])?b:a)[0]+'</b>です。':''));
-  }
-  return out;
-}
-function renderCmp(){
-  if(!$('cmpBody')) return;
-  renderRefSel();
-  const L=phaseLbls(); $('rfStartLbl').textContent=L.start?'（'+L.start+'）':''; $('rfTurnLbl').textContent=L.turn?'（'+L.turn+'）':''; $('rfFinLbl').textContent=L.fin?'（'+L.fin+'）':'';
-  const {me, rf, rows}=cmpRows(), tb=$('cmpBody'); tb.innerHTML=''; $('cmpBrk').innerHTML='';
-  if(!rf){ tb.innerHTML='<tr><td class="l muted" colspan="5">比べる相手を選ぶと表示します。</td></tr>'; updateAiRow(false); return; }
-  const ev=curEv(); if(!(+rf.D===ev.D&&+rf.L===ev.L&&rf.stroke===ev.stroke)) $('cmpBrk').innerHTML='<li class="muted">比べる相手は別の種目（'+refEvText(rf).replace(/[<>&]/g,'')+'）です。</li>';
-  rows.forEach(([n,a,b,u,lowGood,dp])=>{
-    const tr=document.createElement('tr'), d=fin(a)&&fin(b)?a-b:NaN, better=fin(d)&&Math.abs(d)>1e-9?(lowGood?d<0:d>0):null;
-    const cells=[[n,'l'],[fin(a)?a.toFixed(dp)+' '+u:'—'],[fin(b)?b.toFixed(dp)+' '+u:'—'],[fin(d)?(d>=0?'+':'')+d.toFixed(dp):'—', better===null?'':better?'good':'bad'],[fin(d)&&b?(d>=0?'+':'')+(d/b*100).toFixed(1)+'%':'—', better===null?'':better?'good':'bad']];
-    cells.forEach(([x,c])=>{ const td=document.createElement('td'); if(c) td.className=c; td.textContent=x; tr.appendChild(td); });
-    tb.appendChild(tr);
-  });
-  const br=breakdown(me, rf); $('cmpBrk').innerHTML+=br.map(x=>'<li>'+x+'</li>').join('');
-  updateAiRow(true);
-}
-$('bRefSave').onclick=()=>{
-  const label=$('rfLabel').value.trim(); if(!label){ $('refMsg').textContent='名前を入れてください。'; return; }
-  let vel=nv('rfVel'), st=nv('rfSt'), sl=nv('rfSl');
-  if(vel&&st&&!sl) sl=vel*st; else if(vel&&sl&&!st) st=sl/vel; else if(st&&sl&&!vel) vel=sl/st;
-  const ev=curEv(), r={id:Date.now(), saved:new Date().toISOString(), label, D:ev.D, L:ev.L, stroke:ev.stroke,
-    total:nv('rfTotal'), start:nv('rfStart'), turn:nv('rfTurn'), fin:nv('rfFin'), vel, st, sl};
-  const refs=loadRefs(); refs.push(r); if(!saveRefs(refs)){ $('refMsg').textContent='保存できませんでした。'; return; }
-  ['rfLabel','rfTotal','rfStart','rfTurn','rfFin','rfVel','rfSt','rfSl'].forEach(id=>$(id).value='');
-  $('refMsg').textContent='保存しました（'+refEvText(r)+'）。'; renderRefSel(); $('refSel').value=String(r.id); renderCmp();
-};
-$('refSel').onchange=()=>{ $('aiOut').hidden=true; $('bAiCopy').hidden=true; renderCmp(); };
-let refDelArmed=null;
-$('bRefDel').onclick=()=>{
-  const b=$('bRefDel'), rf=curRef(); if(!rf) return;
-  if(!refDelArmed){ b.textContent='もう一度押すと消します'; refDelArmed=setTimeout(()=>{ refDelArmed=null; b.textContent='この相手を消す'; },4000); return; }
-  clearTimeout(refDelArmed); refDelArmed=null; b.textContent='この相手を消す';
-  saveRefs(loadRefs().filter(r=>r.id!==rf.id)); renderCmp();
-};
-
-// ---- AIの助言（claude.ai 版だけ。送るのは種目と数値だけで、対象IDやメモは送らない）----
-function updateAiRow(has){
-  const ok=!!aiSample;
-  $('aiRow').hidden=!ok; $('aiNoteWrap').hidden=!ok;
-  $('bAi').disabled=!has||!!aiCtl;
-  if(!ok) $('aiInfo').textContent=window.claude?'':'AIの助言は、claude.ai 版で開いたときだけ使えます。';
-  else if(!aiCtl && !$('aiInfo').dataset.busy) $('aiInfo').textContent=has?'AIに送るのは、種目・この試技と比べる相手の数値・下の「伝えたいこと」だけです（対象IDやメモ、映像は送りません）。':'比べる相手を選ぶと、AIに助言を頼めます。';
-}
-function aiPrompt(){
-  const {me, rf, rows}=cmpRows(), ev=curEv(), S=me.S;
-  const f=(x,dp)=>fin(x)?x.toFixed(dp):'不明';
-  const lines=rows.map(([n,a,b,u,lowGood,dp])=>'- '+n+'：この選手 '+f(a,dp)+' ／ 比べる相手 '+f(b,dp)+'（'+u+(lowGood?'、小さいほど速い':'、大きいほど良い')+'）');
-  const laps=S.swims.filter(r=>fin(r.vel)).map(r=>'- '+r.name+'（'+fmtD(r.d1)+'–'+fmtD(r.d2)+'m）：泳速度 '+f(r.vel,2)+' m/秒、ストロークタイム '+f(r.st,2)+' 秒、テンポ '+f(r.tempo,1)+' 回/分、ストローク長 '+f(r.sl,2)+' m');
-  const br=breakdown(me, rf).map(x=>'- '+x.replace(/<[^>]+>/g,''));
-  const note=$('aiNote').value.trim();
-  return 'あなたは競泳の指導に詳しいコーチの相談相手です。大学の水泳指導者が、映像から計測した選手の値を、日本のトップ選手のレース分析の値と比べています。'
-    +'次のデータだけをもとに、指導者向けの助言を日本語で書いてください。\n\n'
-    +'【種目】'+ev.D+'m '+ev.stroke+'（'+(ev.L===25?'短水路25m':'長水路50m')+'）\n'
-    +'【比べる相手】'+rf.label+'\n'
-    +'【比較】\n'+lines.join('\n')+'\n'
-    +(laps.length?'【この選手の泳ぎの区間ごとの値】\n'+laps.join('\n')+'\n':'')
-    +(br.length?'【計算した差の内訳】\n'+br.join('\n')+'\n':'')
-    +(note?'【指導者からの補足】'+note+'\n':'')
-    +'\n【書き方】\n'
-    +'1. 「差のまとめ」：差が大きい順に、どこで何秒・何％差があるかを3行以内で。\n'
-    +'2. 「考えられる原因」：数値から考えられることを、推定であると分かる書き方で。データにないこと（体格・年齢・技術の細部など）は断定しない。\n'
-    +'3. 「指導のポイントと練習例」：優先順に3〜5つ。それぞれ、ねらい・具体的な練習（本数・距離・強度の目安）・確認の方法（次の計測で見る値）を書く。\n'
-    +'4. 「次に測るとよいこと」：1〜2行。\n'
-    +'トップ選手との差は、体格や練習量の差も含むので、目標の立て方（まず何を何％縮めるか）も一言そえる。'
-    +'一文は短く、専門用語は少なく。見出しは「■」で始める。マークダウンの記号（#、*、表）は使わない。全体で800字程度。';
-}
-$('bAi').onclick=async()=>{
-  if(!aiSample||aiCtl) return; const rf=curRef(); if(!rf) return;
-  aiCtl=new AbortController(); const out=$('aiOut');
-  out.hidden=false; out.textContent='考えています…（30秒〜1分ほどかかることがあります）'; $('bAiStop').hidden=false; $('bAiCopy').hidden=true; $('bAi').disabled=true;
-  $('aiInfo').dataset.busy='1'; $('aiInfo').textContent='';
-  try{
-    const r=await aiSample(aiPrompt(),{signal:aiCtl.signal, onText:({text})=>{ out.textContent=text; }});
-    out.textContent=r.text; $('bAiCopy').hidden=false;
-    $('aiInfo').textContent=(r.truncated?'途中で切れました。':'')+'AIの助言は参考です。数値の差は計算ですが、原因と練習は推定なので、映像で確かめて使ってください。';
-  }catch(e){
-    const c=e&&e.code;
-    if(e&&e.text) out.textContent=e.text; else if(c!=='cancelled') out.hidden=true;
-    $('aiInfo').textContent= c==='cancelled'?'止めました。'
-      : c==='not_granted'||c==='sampling_disabled'||c==='not_declared'||c==='capability_disabled'?'このページからAIを使うことが許可されていません。'
-      : c==='rate_limited'?'いまは使える回数を超えています。しばらくしてから押してください。'
-      : c==='refused'?'AIが答えられない内容でした。補足の文を変えて試してください。'
-      : 'うまくいきませんでした。もう一度押してください。';
-    if(c==='not_granted'||c==='sampling_disabled'||c==='not_declared'||c==='capability_disabled'){ aiSample=null; }
-  }finally{ aiCtl=null; $('bAiStop').hidden=true; updateAiRow(!!curRef()); delete $('aiInfo').dataset.busy; $('bAi').disabled=!curRef()||!aiSample; }
-};
-$('bAiStop').onclick=()=>{ if(aiCtl) aiCtl.abort(); };
-$('bAiCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText($('aiOut').textContent); $('aiInfo').textContent='助言をコピーしました。'; }catch(e){ $('aiInfo').textContent='コピーできませんでした。文を長押し（または選んで）コピーしてください。'; } };
-(async()=>{ try{ if(window.claude&&typeof window.claude.use==='function'){ aiSample=await window.claude.use('sample'); } }catch(e){ aiSample=null; } renderCmp(); })();
 
 render();
 renderHist();
