@@ -116,6 +116,24 @@ section{min-width:0}
 #floatBar.docked button.ur{flex:0 0 auto;padding:6px 10px}
 #zoomBar.docked{margin-left:auto}
 #zoomBar.docked span{color:var(--sub)}
+/* リズムで記録 */
+.rpad{margin-top:8px;border:2px solid var(--stroke);border-radius:12px;padding:10px;background:var(--panel)}
+.lane{position:relative;height:16px;border-radius:8px;background:var(--btn);overflow:hidden}
+.lane-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#f0b48b;border-radius:8px}
+.lane-fill.near{background:#e0702d}
+.lane-hit{position:absolute;right:0;top:0;bottom:0;width:6px;background:var(--stroke)}
+.rbtns{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px}
+.rbtns button{font-size:20px;font-weight:800;padding:20px 6px;border-width:3px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.rbtns button.pass{background:var(--pass-weak);color:var(--pass);border-color:var(--pass)}
+.rbtns button.stroke{background:var(--stroke-weak);color:var(--stroke);border-color:var(--stroke)}
+.rbtns button.hit{transform:scale(.96);filter:brightness(1.15)}
+.rrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;font-size:13px}
+.rrow button{padding:6px 10px}
+.rrow button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.caldot{width:64px;height:64px;border-radius:50%;background:var(--btn);margin:8px auto;transition:background .05s}
+.caldot.on{background:#e0702d}
+.panel h3{font-size:14px;margin:14px 0 4px}
+.ticks i.tap{background:#c0392b}
 .flash{animation:fl .5s}
 @keyframes fl{from{background:var(--accent-weak)}to{background:transparent}}
 </style>
@@ -159,6 +177,12 @@ section{min-width:0}
       </div>
     </div>
     <div class="dock" id="dock"></div>
+    <div class="rpad" id="rhyPad" hidden>
+      <div class="lane" title="前のストロークの間隔から、次のストロークが来そうな時刻を示します。右端に届くころが押すタイミングです"><div class="lane-fill" id="laneFill"></div><span class="lane-hit"></span></div>
+      <div class="rbtns"><button class="pass" id="rPass">通過 <span class="kbd">P</span></button><button class="stroke" id="rStroke">ストローク <span class="kbd">S</span></button></div>
+      <div class="rrow"><span class="muted">速さ</span><button data-rate="0.25">0.25倍</button><button data-rate="0.5">0.5倍</button><button data-rate="1">1倍</button><button id="rPlay">再生／停止</button><button id="rEnd">リズムの記録を終わる</button></div>
+      <div class="muted" id="rInfo" style="margin-top:6px"></div>
+    </div>
     <div class="seekbar">
       <div class="ticks" id="ticks"></div>
       <input type="range" id="seek" min="0" max="0" step="any" value="0" disabled aria-label="映像の時間を移動">
@@ -248,6 +272,24 @@ section{min-width:0}
         <li><b>スマホで使うとき</b>：映像の上の「スタート」「通過」「ストローク」ボタンと、映像の下のスライドバー・コマ送りボタンで操作します。ボタンは左の ⠿ を指でつかんで動かせます。iPhoneの映像（mov）は、Androidのスマホでは再生できないことがあります。</li>
       </ol>
     </details>
+  </div>
+
+  <div class="panel">
+    <h2>リズムで記録（ゲーム感覚・試作）</h2>
+    <div class="row" style="margin-top:0"><button class="big stroke" id="bRhy">リズムで記録を始める</button></div>
+    <p class="muted" style="margin:6px 0 0">映像を<b>止めずに</b>再生しながら、ストロークや通過の瞬間に、映像の下の大きなボタンを押します（パソコンは <span class="kbd">S</span> <span class="kbd">P</span> キーでも可）。<b>0.5倍や0.25倍のスロー</b>で押すと、ずれが小さくなります（0.25倍なら、押すずれ0.1秒が映像では0.025秒）。スタート（0秒）は、これまでどおり映像を止めて合わせてください。リズムで付けた印は、スライドバーの上に赤い線で出ます。</p>
+    <h3>① 自分のくせの補正</h3>
+    <div class="row" style="margin-top:0"><button id="bCal">くせを測る</button><label class="muted">押すずれ <input type="number" id="tapOff" step="5" value="0" style="width:70px"> ミリ秒（＋は遅れて押すくせ）</label></div>
+    <div id="calBox" hidden><div class="caldot" id="calDot"></div><div class="rbtns" style="grid-template-columns:1fr"><button class="stroke" id="calTap">光ったら押す</button></div><p class="muted" id="calMsg" style="text-align:center;margin:6px 0 0"></p></div>
+    <p class="muted" id="calInfo" style="margin:6px 0 0">丸が一定のリズムで光ります。光るのに合わせて12回ほど押すと、いつもどれくらい遅れて（早く）押すかを測り、リズムで付ける印からそのぶんを差し引きます。</p>
+    <h3>② 見直し（印から印へ飛んで、1コマずつ直す）</h3>
+    <div class="row" style="margin-top:0"><button id="rvPrev">◀ 前の印</button><button id="rvNext">次の印 ▶</button><span class="muted" id="rvInfo"></span></div>
+    <div class="row"><button id="rvM1">この印を −1コマ</button><button id="rvP1">この印を ＋1コマ</button><button id="rvDel">この印を消す</button></div>
+    <div class="row"><button id="rvAllM">リズムの印をまとめて −1コマ</button><button id="rvAllP">リズムの印をまとめて ＋1コマ</button></div>
+    <h3>③ コマ送りの印と比べる</h3>
+    <div class="row" style="margin-top:0"><button id="bTapCmp">比べる</button></div>
+    <p class="muted" id="tapCmpInfo" style="margin:6px 0 0">先にコマ送りでストロークの印をつけてから、リズムでもう一度押し、「比べる」を押します。比べたあと、どちらかの印を残してください（両方あると、ストロークを二重に数えます）。</p>
+    <div class="row" id="cmpKeep" hidden><button id="keepTap">リズムの印を残す</button><button id="keepFrame">コマ送りの印を残す</button></div>
   </div>
 </section>
 
@@ -582,7 +624,7 @@ document.addEventListener('pointerup',()=>{ if(seekDragging) setTimeout(()=>{ se
 function renderTicks(){   // スライドバーの上に、印の位置を細い線で示す
   const box=$('ticks'), d=v.duration||0; box.innerHTML='';
   if(!(d>0)) return;
-  marks.forEach(m=>{ const i=document.createElement('i'); i.className=m.type+(m.auto?' auto':''); i.style.left=(m.t/d*100)+'%'; box.appendChild(i); });
+  marks.forEach(m=>{ const i=document.createElement('i'); i.className=m.type+(m.auto?' auto':'')+(m.tap?' tap':''); i.style.left=(m.t/d*100)+'%'; box.appendChild(i); });
 }
 
 // ---- 映像の上のボタン（つかんで動かせる）----
@@ -649,9 +691,11 @@ $('rate').onchange=()=>{ v.playbackRate=parseFloat($('rate').value); };
 
 function addMark(type){
   if(!v.src){ flashMsg('先に映像を選んでください。'); return; }
-  v.pause();
-  const waiting=(pendingT!==null);   // まだ表示されていない行き先のコマに印をつける
-  const m={id:nextId++, type, t:waiting?pendingT:curT};
+  const rhy=rhyOn && type!=='start' && !v.paused;   // リズムで記録中：止めずに記録する
+  if(!rhy) v.pause();
+  const waiting=!rhy && (pendingT!==null);   // まだ表示されていない行き先のコマに印をつける
+  const m={id:nextId++, type, t:rhy?tapTime():(waiting?pendingT:curT)};
+  if(rhy) m.tap=true;
   if(waiting) m.fix=true;            // 表示されたら、映像の正確な時刻に合わせ直す
   if(type==='pass'){
     const d=parseFloat($('dist').value); if(!Number.isFinite(d)){ flashMsg('通過の距離を入れてください。'); nextId--; return; }
@@ -667,9 +711,10 @@ function addMark(type){
     flashMsg(had?'スタートを、このコマに置き換えました。':'このコマをスタート（0秒）にしました。');
     return;
   }
-  const dup=marks.find(x=>x.type===type && Math.abs(x.t-m.t)<0.5/fps());
+  const dup=marks.find(x=>x.type===type && !!x.tap===!!m.tap && Math.abs(x.t-m.t)<0.5/fps());   // リズムの印とコマ送りの印は、比べられるように別々に数える
   if(dup){ flashMsg('同じコマに同じ種類の印がすでにあるため、記録しませんでした。'); nextId--; return; }
   marks.push(m); store(); render(m.id);
+  if(rhy) rhyFeedback(type);
 }
 $('bStart').onclick=()=>addMark('start');
 function flashMsg(t){ const el=$('loadMsg'); el.textContent=t; el.style.color='var(--warn)'; clearTimeout(flashMsg.h); flashMsg.h=setTimeout(()=>{ el.style.color=''; },3000); }
@@ -1518,6 +1563,139 @@ v.addEventListener('loadedmetadata',()=>{ $('zoomBar').classList.add('on'); setT
   v.addEventListener('pointerup',end); v.addEventListener('pointercancel',end);
   v.addEventListener('wheel',e=>{ if(!v.src||!e.ctrlKey) return; e.preventDefault(); const p=loc(e); zoomAt(zoom.s*Math.exp(-e.deltaY*0.01),p.x,p.y); },{passive:false});
 })();
+
+// ---- リズムで記録（ゲーム感覚）----
+var rhyOn=false, rhyRaf=0, rvSel=null, audioCtx=null;
+const TAPOFF_KEY='swim-measure:tapOffset';
+try{ const o=parseFloat(localStorage.getItem(TAPOFF_KEY)); if(Number.isFinite(o)) $('tapOff').value=Math.round(o); }catch(e){}
+$('tapOff').addEventListener('change',()=>{ try{ localStorage.setItem(TAPOFF_KEY,String(parseFloat($('tapOff').value)||0)); }catch(e){} });
+function tapTime(){   // 押した瞬間の映像の時刻から、くせの分（再生の速さをかける）を差し引き、いちばん近いコマにそろえる
+  const off=(parseFloat($('tapOff').value)||0)/1000, rate=v.playbackRate||1, F=fps();
+  const t=Math.max(0,v.currentTime-off*rate);
+  return Math.round(t*F)/F;
+}
+function beep(freq){ try{ audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.frequency.value=freq; g.gain.setValueAtTime(0.12,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.06); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.07); }catch(e){} }
+function strokeGaps(){   // ストロークの間隔（ターンなどの長い間は除く）
+  const st=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b), g=[];
+  for(let i=1;i<st.length;i++) g.push(st[i]-st[i-1]);
+  if(g.length<2) return {st, g:[]};
+  const med=[...g].sort((a,b)=>a-b)[Math.floor(g.length/2)];
+  return {st, g:g.filter(x=>x<1.8*med&&x>0.4*med)};
+}
+function rhyScore(){
+  const {st,g}=strokeGaps(); if(g.length<3) return 'ストローク '+st.length+' 回';
+  const m=g.reduce((a,b)=>a+b,0)/g.length, sd=Math.sqrt(g.reduce((a,b)=>a+(b-m)**2,0)/g.length), cv=sd/m*100;
+  const stars=cv<3?'★★★':cv<6?'★★':'★';
+  return 'ストローク '+st.length+' 回・間隔の平均 '+m.toFixed(2)+' 秒・ばらつき '+cv.toFixed(1)+'%（'+stars+'　小さいほどリズムが安定）';
+}
+function rhyFeedback(type){
+  const b=type==='pass'?$('rPass'):$('rStroke'); b.classList.add('hit'); setTimeout(()=>b.classList.remove('hit'),90);
+  beep(type==='pass'?660:880);
+  $('rInfo').textContent=(type==='pass'?'通過を記録しました。':'')+rhyScore();
+}
+function laneTick(){   // 次のストロークが来そうな時刻へ向かって、帯が伸びる
+  rhyRaf=0; if(!rhyOn) return;
+  const t=v.currentTime, st=marks.filter(m=>m.type==='stroke'&&m.t<=t+1e-6).map(m=>m.t).sort((a,b)=>a-b), fill=$('laneFill');
+  let w=0, near=false;
+  if(st.length>=3){
+    const g=[]; for(let i=Math.max(1,st.length-3);i<st.length;i++) g.push(st[i]-st[i-1]);
+    const T=[...g].sort((a,b)=>a-b)[Math.floor(g.length/2)], last=st[st.length-1], p=(t-last)/T;
+    if(T>0.2&&T<3&&p<1.6){ w=Math.min(1,p); near=p>0.85; }
+  }
+  fill.style.width=(w*100)+'%'; fill.classList.toggle('near',near);
+  if(!v.paused) rhyRaf=requestAnimationFrame(laneTick);
+}
+v.addEventListener('play',()=>{ if(rhyOn&&!rhyRaf) rhyRaf=requestAnimationFrame(laneTick); });
+v.addEventListener('pause',()=>{ if(rhyOn) laneTick(); });
+v.addEventListener('ratechange',markRate);
+function markRate(){ document.querySelectorAll('#rhyPad [data-rate]').forEach(b=>b.classList.toggle('on',Math.abs(parseFloat(b.dataset.rate)-(v.playbackRate||1))<1e-6)); }
+function setRhy(on){
+  rhyOn=on; $('rhyPad').hidden=!on; $('bRhy').textContent=on?'リズムの記録を終わる':'リズムで記録を始める';
+  if(on){ if(!v.src){ flashMsg('先に映像を選んでください。'); setRhy(false); return; }
+    if((v.playbackRate||1)>=1){ v.playbackRate=0.5; $('rate').value='0.5'; }
+    markRate(); $('rInfo').textContent='「再生／停止」で再生し、ストロークや通過の瞬間に大きなボタンを押してください。'+rhyScore();
+    $('rhyPad').scrollIntoView({block:'nearest'}); laneTick();
+  } else { if(rhyRaf) cancelAnimationFrame(rhyRaf); rhyRaf=0; }
+}
+$('bRhy').onclick=()=>setRhy(!rhyOn);
+$('rEnd').onclick=()=>{ v.pause(); setRhy(false); };
+$('rPlay').onclick=()=>{ if(!v.src) return; v.paused?v.play():v.pause(); $('rPlay').blur(); };
+document.querySelectorAll('#rhyPad [data-rate]').forEach(b=>b.onclick=()=>{ v.playbackRate=parseFloat(b.dataset.rate); $('rate').value=b.dataset.rate; markRate(); b.blur(); });
+// 大きなボタンは、指が触れた瞬間（離したときではなく）に記録する
+[['rStroke','stroke'],['rPass','pass']].forEach(([id,type])=>{
+  $(id).addEventListener('pointerdown',e=>{ e.preventDefault(); addMark(type); });
+  $(id).addEventListener('click',e=>e.preventDefault());
+});
+
+// ① くせの補正：丸が一定のリズムで光り、それに合わせて押したずれを測る
+(function(){
+  let cal=null;
+  const N=14, GAP=0.8;   // 14回、0.8秒ごと（ストロークくらいのリズム）
+  $('bCal').onclick=()=>{
+    if(cal) return; v.pause();
+    $('calBox').hidden=false; $('calMsg').textContent='光るのに合わせて押してください（はじめの数回は練習）'; $('bCal').disabled=true;
+    cal={flashes:[], taps:[], t0:performance.now()+900, k:0};
+    const loop=now=>{
+      if(!cal) return;
+      const due=cal.t0+cal.k*GAP*1000;
+      if(cal.k<N && now>=due){ $('calDot').classList.add('on'); cal.flashes.push(now); cal.k++; setTimeout(()=>$('calDot').classList.remove('on'),120); }
+      if(cal.k>=N && now>cal.t0+(N-1)*GAP*1000+700){ finish(); return; }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  };
+  $('calTap').addEventListener('pointerdown',e=>{ e.preventDefault(); if(cal){ cal.taps.push(e.timeStamp||performance.now()); beep(880); } });
+  function finish(){
+    const c=cal; cal=null; $('calBox').hidden=true; $('bCal').disabled=false;
+    const d=[]; c.taps.forEach(t=>{ let best=null; c.flashes.forEach((f,i)=>{ if(i<3) return; const x=t-f; if(Math.abs(x)<GAP*500 && (best===null||Math.abs(x)<Math.abs(best))) best=x; }); if(best!==null) d.push(best); });
+    if(d.length<6){ $('calInfo').textContent='押した回数が足りませんでした（'+d.length+'回）。もう一度「くせを測る」を押してください。'; return; }
+    d.sort((a,b)=>a-b); const med=d[Math.floor(d.length/2)], spread=(d[Math.floor(d.length*0.75)]-d[Math.floor(d.length*0.25)]);
+    $('tapOff').value=Math.round(med); try{ localStorage.setItem(TAPOFF_KEY,String(Math.round(med))); }catch(e){}
+    $('calInfo').textContent='測り終わりました（'+d.length+'回）：押すずれ 平均 '+Math.round(med)+' ミリ秒（'+(med>=0?'遅れて':'早めに')+'押すくせ）、ばらつき 約 '+Math.round(spread)+' ミリ秒。リズムで付ける印から、このずれを差し引きます。0.5倍で押すと、映像では約 '+Math.round(Math.abs(med)/2)+' ミリ秒分です。';
+  }
+})();
+
+// ② 見直し：印から印へ飛んで、1コマずつ直す
+function rvList(){ return marks.filter(m=>m.type==='stroke'||m.type==='pass').sort((a,b)=>a.t-b.t); }
+function rvShow(){
+  const L=rvList(), i=L.findIndex(m=>m.id===rvSel), m=L[i];
+  if(!m){ $('rvInfo').textContent=''; return; }
+  const r=rel(m.t);
+  $('rvInfo').textContent=(m.type==='pass'?'通過 '+fmtD(m.dist)+'m':'ストローク')+(m.tap?'（リズム）':'')+'　'+(i+1)+'/'+L.length+'　'+(Number.isFinite(r)?'スタートから '+r.toFixed(3)+' 秒':'映像 '+m.t.toFixed(3)+' 秒');
+}
+function rvGo(dir){
+  const L=rvList(); if(!L.length){ $('rvInfo').textContent='印がありません。'; return; }
+  let i=L.findIndex(m=>m.id===rvSel);
+  if(i<0){ const t=curT; i=dir>0?L.findIndex(m=>m.t>t+1e-4):(()=>{ let k=-1; L.forEach((m,j)=>{ if(m.t<t-1e-4) k=j; }); return k; })(); if(i<0) i=dir>0?0:L.length-1; }
+  else i=Math.max(0,Math.min(L.length-1,i+dir));
+  rvSel=L[i].id; seekTo(L[i].t); rvShow();
+}
+$('rvPrev').onclick=()=>rvGo(-1); $('rvNext').onclick=()=>rvGo(1);
+function rvMove(n){
+  const m=marks.find(x=>x.id===rvSel); if(!m){ $('rvInfo').textContent='先に「前の印」「次の印」で印を選んでください。'; return; }
+  const F=fps(); m.t=Math.max(0,Math.round((m.t+n/F)*F)/F); delete m.fix; store(); render(m.id); seekTo(m.t); rvShow();
+}
+$('rvM1').onclick=()=>rvMove(-1); $('rvP1').onclick=()=>rvMove(1);
+$('rvDel').onclick=()=>{ const L=rvList(), i=L.findIndex(m=>m.id===rvSel); if(i<0){ $('rvInfo').textContent='先に「前の印」「次の印」で印を選んでください。'; return; }
+  marks=marks.filter(x=>x.id!==rvSel); const nx=L[i+1]||L[i-1]; rvSel=nx?nx.id:null; store(); render(); updateClock(); if(nx) seekTo(nx.t); rvShow(); };
+function shiftTaps(n){ const F=fps(), T=marks.filter(m=>m.tap); if(!T.length){ $('rvInfo').textContent='リズムで付けた印がありません。'; return; }
+  T.forEach(m=>{ m.t=Math.max(0,Math.round((m.t+n/F)*F)/F); }); store(); render(); $('rvInfo').textContent='リズムの印 '+T.length+' 個を '+(n>0?'＋':'−')+'1コマずらしました。'; }
+$('rvAllM').onclick=()=>shiftTaps(-1); $('rvAllP').onclick=()=>shiftTaps(1);
+
+// ③ コマ送りの印と比べる（ストローク）
+$('bTapCmp').onclick=()=>{
+  const A=marks.filter(m=>m.type==='stroke'&&m.tap).map(m=>m.t).sort((a,b)=>a-b), B=marks.filter(m=>m.type==='stroke'&&!m.tap).map(m=>m.t).sort((a,b)=>a-b);
+  if(A.length<3||B.length<3){ $('tapCmpInfo').textContent='比べるには、コマ送りの印とリズムの印が、それぞれ3回以上必要です（いま コマ送り '+B.length+' 回、リズム '+A.length+' 回）。'; $('cmpKeep').hidden=true; return; }
+  const F=fps(), used=new Set(), d=[];
+  A.forEach(t=>{ let bi=-1, bd=1e9; B.forEach((u,i)=>{ if(used.has(i)) return; const x=Math.abs(t-u); if(x<bd){ bd=x; bi=i; } }); if(bi>=0&&bd<=0.2){ used.add(bi); d.push(t-B[bi]); } });
+  if(!d.length){ $('tapCmpInfo').textContent='近い印が見つかりませんでした（0.2秒以内）。同じ動作の瞬間に印をつけたか確かめてください。'; $('cmpKeep').hidden=false; return; }
+  const mean=d.reduce((a,b)=>a+b,0)/d.length, mae=d.reduce((a,b)=>a+Math.abs(b),0)/d.length, within1=d.filter(x=>Math.abs(x)<=1.5/F).length;
+  $('tapCmpInfo').textContent='比べた結果：組になった '+d.length+' 回（リズム '+A.length+' 回・コマ送り '+B.length+' 回）。ずれの平均 '+(mean>=0?'＋':'')+(mean*1000).toFixed(0)+' ミリ秒（'+(mean*F).toFixed(1)+' コマ、＋はリズムが遅い）、ずれの大きさの平均 '+(mae*1000).toFixed(0)+' ミリ秒（'+(mae*F).toFixed(1)+' コマ）、±1コマ以内 '+within1+' 回（'+Math.round(within1/d.length*100)+'%）。'
+    +(Math.abs(mean*F)>=1?' いつも同じ向きにずれているので、「押すずれ」を '+Math.round((parseFloat($('tapOff').value)||0)+mean/(v.playbackRate||1)*1000)+' ミリ秒くらいにする（または「まとめて ±1コマ」）と合いやすくなります（いまの速さで押した場合）。':'');
+  $('cmpKeep').hidden=false;
+};
+$('keepTap').onclick=()=>{ const n=marks.filter(m=>m.type==='stroke'&&!m.tap).length; marks=marks.filter(m=>!(m.type==='stroke'&&!m.tap)); store(); render(); $('cmpKeep').hidden=true; $('tapCmpInfo').textContent='コマ送りのストロークの印 '+n+' 回を消し、リズムの印を残しました（「元に戻す」で戻せます）。'; };
+$('keepFrame').onclick=()=>{ const n=marks.filter(m=>m.type==='stroke'&&m.tap).length; marks=marks.filter(m=>!(m.type==='stroke'&&m.tap)); store(); render(); $('cmpKeep').hidden=true; $('tapCmpInfo').textContent='リズムのストロークの印 '+n+' 回を消し、コマ送りの印を残しました（「元に戻す」で戻せます）。'; };
 
 render();
 renderHist();
