@@ -69,10 +69,14 @@ details li{margin:3px 0}
 .float .kbd{background:rgba(255,255,255,.6);color:#1d2329}
 .ov{position:absolute;left:0;top:0;z-index:2;pointer-events:none}
 #video{transform-origin:0 0}
-.roi-layer{position:absolute;inset:0;z-index:7;cursor:crosshair;touch-action:none;display:none}
-.roi-layer.on{display:block}
-.roi-rect{position:absolute;border:2px solid #ffd54a;background:rgba(255,213,74,.12);box-shadow:0 0 0 9999px rgba(0,0,0,.35)}
-.roi-hint{position:absolute;left:8px;right:8px;top:8px;color:#fff;background:rgba(0,0,0,.6);border-radius:6px;padding:4px 8px;font-size:13px;pointer-events:none}
+.zbar{position:absolute;right:10px;bottom:10px;z-index:6;display:none;gap:4px;align-items:center;padding:5px;border-radius:10px;background:rgba(20,24,28,.62);user-select:none;touch-action:none}
+.zbar.on{display:flex}
+.zbar button{padding:4px 0;font-weight:700;font-size:16px;min-width:40px}
+.zbar button.txt{font-size:13px;padding:6px 8px}
+.zbar span{color:#e6e9ec;font-size:12px;min-width:36px;text-align:center;font-variant-numeric:tabular-nums}
+.float button.ur{background:#f1f3f5;color:#1d2329;border-color:#aab3bb;font-size:17px;padding:5px 9px}
+.float button.ur:disabled{opacity:.45}
+#video.zoomed{cursor:grab} #video.panning{cursor:grabbing}
 .ticks i.auto{background:#d9a441}
 .tag.auto{background:#fff1cc;color:#7a5200}
 progress{width:160px}
@@ -132,12 +136,16 @@ section{min-width:0}
       <video id="video" playsinline muted></video>
       <div class="placeholder" id="ph">ここに映像が表示されます</div>
       <canvas class="ov" id="ov" aria-hidden="true"></canvas>
-      <div class="roi-layer" id="roiLayer"><div class="roi-hint">選手（腕が動く範囲）を指またはマウスで四角く囲んでください</div><div class="roi-rect" id="roiRect" hidden></div></div>
       <div class="float" id="floatBar" title="左の ⠿ をつかむと、好きな場所へ動かせます">
         <span class="grip" id="floatGrip" aria-label="ボタンを動かす">⠿</span>
         <button class="start" data-mark="start">スタート<span class="lg">（0秒）にする</span> <span class="kbd">T</span></button>
         <button class="pass" data-mark="pass">通過<span class="lg">記録</span> <span class="kbd">P</span></button>
         <button class="stroke" data-mark="stroke">ストローク<span class="lg">記録</span> <span class="kbd">S</span></button>
+        <button class="ur" id="fUndo" title="元に戻す（Ctrl+Z）" aria-label="元に戻す" disabled>↶</button>
+        <button class="ur" id="fRedo" title="やり直す（Ctrl+Y）" aria-label="やり直す" disabled>↷</button>
+      </div>
+      <div class="zbar" id="zoomBar" title="拡大中は、映像をドラッグ（指でなぞる）して見る場所を動かせます">
+        <button id="zOut" title="縮小" aria-label="縮小" disabled>－</button><span id="zLv">1倍</span><button id="zIn" title="拡大" aria-label="拡大">＋</button><button class="txt" id="zReset" title="元の大きさに戻す" disabled>戻す</button>
       </div>
     </div>
     <div class="seekbar">
@@ -190,19 +198,10 @@ section{min-width:0}
     </div>
     <div class="row">
       <button class="big stroke" id="bStroke">ストロークを記録 <span class="kbd">S</span></button>
-      <button id="bUndo">最後の印を取り消す <span class="kbd">Backspace</span></button>
+      <button id="bUndo" disabled>↶ 元に戻す <span class="kbd">Ctrl+Z</span></button>
+      <button id="bRedo" disabled>↷ やり直す <span class="kbd">Ctrl+Y</span></button>
     </div>
-    <p class="muted" style="margin:10px 0 0">操作：映像の下のスライドバーで時間を移動、映像の上のボタンは左の <b>⠿</b> をつかんで好きな場所へ動かせます。<span class="kbd">T</span> スタート（0秒）、<span class="kbd">←</span><span class="kbd">→</span> 1コマ送り、<span class="kbd">Shift</span>＋<span class="kbd">←</span><span class="kbd">→</span> 10コマ送り、<span class="kbd">スペース</span> 再生／停止。表の行をクリックすると、その場面に戻ります。</p>
-  </div>
-
-  <div class="panel">
-    <h2>ズーム（拡大して見る）</h2>
-    <div class="row" style="margin-top:0">
-      <button id="bRoi">ズームする範囲を選ぶ</button>
-      <label><input type="checkbox" id="zoomOn" disabled> ズームして見る</label>
-      <button id="bAutoClear" hidden>前の自動の印をすべて消す</button>
-    </div>
-    <p class="muted" id="zoomInfo" style="margin:6px 0 0">選手が小さく映るときは、範囲を指（マウス）で囲むと、その範囲を拡大して見られます。拡大したまま印をつけられます。</p>
+    <p class="muted" style="margin:10px 0 0">操作：映像の下のスライドバーで時間を移動、映像の上のボタンは左の <b>⠿</b> をつかんで好きな場所へ動かせます。<span class="kbd">T</span> スタート（0秒）、<span class="kbd">←</span><span class="kbd">→</span> 1コマ送り、<span class="kbd">Shift</span>＋<span class="kbd">←</span><span class="kbd">→</span> 10コマ送り、<span class="kbd">スペース</span> 再生／停止。表の行をクリックすると、その場面に戻ります。<br>間違えたときは「↶ 元に戻す」（<span class="kbd">Ctrl</span>＋<span class="kbd">Z</span> または <span class="kbd">Backspace</span>）で一つ前に戻り、「↷ やり直す」（<span class="kbd">Ctrl</span>＋<span class="kbd">Y</span>）で戻したことを取り消せます。印をつける・消す・すべて消すのどれも戻せます。<br>ズーム：映像の右下の <b>＋</b> <b>－</b> で拡大・縮小、「戻す」で元の大きさ。拡大中は映像をドラッグ（指でなぞる）して見る場所を動かせます。スマホは2本指で広げても拡大できます。</p>
   </div>
 
   <div class="panel">
@@ -415,7 +414,7 @@ if(setupOpenOut(navigator.userAgent)) autoOpenOut(navigator.userAgent);
 const v=$('video');
 const hasRVFC='requestVideoFrameCallback' in HTMLVideoElement.prototype;
 let curT=0;            // 表示中のコマの時刻（秒）
-let roi=null;            // ズームの範囲（映像に対する割合）{x,y,w,h}
+let zoom={s:1,cx:0.5,cy:0.5};   // ズーム：倍率と、真ん中に見せる場所（映像に対する割合）
 let marks=[];          // 記録順 {id,type,t,dist}
 let nextId=1, fileKey=null, objUrl=null;
 let fpsSamples=[], lastMeta=null, fpsEstVal=null;
@@ -430,9 +429,9 @@ const rel=t=>{ const s=startT(); return s===null?NaN:t-s; };
 
 // ---- 保存（このブラウザのみ）----
 const SET_IDS=['evDist','pool','phStart','phIn','phOut','phFin','distMode','sigDist'];
-function store(){ if(!fileKey) return; try{ const set={}; SET_IDS.forEach(id=>set[id]=$(id).value);
-  localStorage.setItem(fileKey, JSON.stringify({marks, nextId, roi, meta:readMeta(), set, dist:$('dist').value, distStep:$('distStep').value, fps:$('fps').value})); }catch(e){} }
-function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; roi=o.roi||null; nextId=o.nextId||marks.length+1;
+function store(noHist){ if(!fileKey) return; if(noHist) lastSnap=snapNow(); else trackHistory(); try{ const set={}; SET_IDS.forEach(id=>set[id]=$(id).value);
+  localStorage.setItem(fileKey, JSON.stringify({marks, nextId, meta:readMeta(), set, dist:$('dist').value, distStep:$('distStep').value, fps:$('fps').value})); }catch(e){} }
+function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; nextId=o.nextId||marks.length+1;
   if(o.meta){$('subj').value=o.meta.subj||'';$('stroke').value=o.meta.stroke||'自由形';$('trial').value=o.meta.trial||1;$('memo').value=o.meta.memo||''; if(o.meta.date) $('mDate').value=o.meta.date;}
   if(o.set) SET_IDS.forEach(id=>{ if(o.set[id]!==undefined) $(id).value=o.set[id]; });
   if(o.dist) $('dist').value=o.dist; if(o.distStep) $('distStep').value=o.distStep; if(o.fps) $('fps').value=o.fps; return marks.length; }catch(e){ return 0; } }
@@ -487,14 +486,14 @@ $('file').addEventListener('change',e=>{
   if(objUrl) URL.revokeObjectURL(objUrl);
   objUrl=URL.createObjectURL(f);
   fileKey='swim-measure:'+f.name+':'+f.size;
-  curFile=f; sigCache=null; $('sigCands').hidden=true; roi=null;
+  curFile=f; sigCache=null; $('sigCands').hidden=true; zoom={s:1,cx:0.5,cy:0.5};
   { const d=new Date(f.lastModified||Date.now()); $('mDate').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }   // 測定日の初め：映像ファイルの日付
   marks=[]; nextId=1; fpsSamples=[]; fpsEstVal=null; $('fpsEst').textContent='（再生すると自動で推定します）'; $('bFpsUse').disabled=true;
   let savedFps=false; try{ const s=localStorage.getItem(fileKey); savedFps=!!(s && JSON.parse(s).fps); }catch(e){}
   const n=restore(); needProbe=!savedFps;
   v.src=objUrl; $('ph').style.display='none';
   $('loadMsg').textContent=n?('前回この映像につけた印を読み込みました（'+n+'件）。'):'映像を読み込みました。';
-  $('zoomOn').checked=!!roi; render(); applyZoom();
+  render(); applyZoom(); resetHistory();
 });
 v.addEventListener('loadeddata',()=>{ curT=v.currentTime; updateClock(); if(needProbe){ needProbe=false; probeFps(); } });
 // 読み込んだ直後に約1秒だけ再生して、映像のコマ数を調べる（設定を保存した映像は除く）
@@ -518,7 +517,7 @@ function onFrame(now,meta){
     pendingT=null;
     let fixed=false;
     marks.forEach(m=>{ if(m.fix){ if(Math.abs(m.t-curT)<0.75/fps()) m.t=curT; delete m.fix; fixed=true; } });
-    if(fixed){ store(); render(); }
+    if(fixed){ store(true); render(); }   // 時刻の合わせ直しは、元に戻す対象にしない
   }
   if(!v.paused && lastMeta && meta.presentedFrames-lastMeta.presentedFrames===1){
     const d=meta.mediaTime-lastMeta.mediaTime;
@@ -576,7 +575,7 @@ function renderTicks(){   // スライドバーの上に、印の位置を細い
 }
 
 // ---- 映像の上のボタン（つかんで動かせる）----
-document.querySelectorAll('#floatBar button').forEach(b=>{
+document.querySelectorAll('#floatBar button[data-mark]').forEach(b=>{
   b.addEventListener('click',()=>{ addMark(b.dataset.mark); b.blur(); });
 });
 (function(){
@@ -652,8 +651,21 @@ $('bStart').onclick=()=>addMark('start');
 function flashMsg(t){ const el=$('loadMsg'); el.textContent=t; el.style.color='var(--warn)'; clearTimeout(flashMsg.h); flashMsg.h=setTimeout(()=>{ el.style.color=''; },3000); }
 $('bPass').onclick=()=>addMark('pass');
 $('bStroke').onclick=()=>addMark('stroke');
-function undo(){ const m=marks.pop(); if(!m) return; if(m.type==='pass') $('dist').value=m.dist; store(); render(); updateClock(); }
-$('bUndo').onclick=undo;
+// ---- 元に戻す・やり直す（印の状態を、変えるたびに覚えておく）----
+let undoSt=[], redoSt=[], lastSnap=null;
+function snapNow(){ return {m:JSON.stringify(marks), d:$('dist').value}; }
+function updUR(){ const u=!undoSt.length, r=!redoSt.length; $('bUndo').disabled=u; $('fUndo').disabled=u; $('bRedo').disabled=r; $('fRedo').disabled=r; }
+function resetHistory(){ undoSt=[]; redoSt=[]; lastSnap=snapNow(); updUR(); }
+function trackHistory(){
+  const cur=JSON.stringify(marks);
+  if(lastSnap && cur!==lastSnap.m){ undoSt.push(lastSnap); if(undoSt.length>300) undoSt.shift(); redoSt=[]; }
+  lastSnap=snapNow(); updUR();
+}
+function applySnap(sn){ marks=JSON.parse(sn.m); $('dist').value=sn.d; store(true); render(); renderTicks(); updateClock(); updUR(); }
+function undo(){ if(!undoSt.length){ flashMsg('これより前には戻せません。'); return; } redoSt.push(snapNow()); applySnap(undoSt.pop()); flashMsg('一つ前に戻しました。'); }
+function redo(){ if(!redoSt.length){ flashMsg('やり直せる操作はありません。'); return; } undoSt.push(snapNow()); applySnap(redoSt.pop()); flashMsg('戻したことを取り消しました。'); }
+$('bUndo').onclick=undo; $('bRedo').onclick=redo;
+$('fUndo').onclick=()=>{ undo(); $('fUndo').blur(); }; $('fRedo').onclick=()=>{ redo(); $('fRedo').blur(); };
 // 確認の小窓は公開ページで出ないため、「もう一度押すと消す」の2段階にする
 let clearArmed=null;
 $('bClear').onclick=()=>{
@@ -668,6 +680,9 @@ document.addEventListener('keydown',e=>{
   const tag=(e.target.tagName||'').toLowerCase();
   if((tag==='input' && e.target.type!=='range')||tag==='select'||tag==='textarea') return;
   if(e.target.type==='range' && /^(Arrow|Page|Home|End)/.test(e.key)) e.preventDefault();   // スライドバーでも矢印はコマ送り
+  if((e.ctrlKey||e.metaKey) && (e.key==='z'||e.key==='Z')){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); return; }
+  if((e.ctrlKey||e.metaKey) && (e.key==='y'||e.key==='Y')){ e.preventDefault(); redo(); return; }
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(e.key==='ArrowRight'){ e.preventDefault(); step(e.shiftKey?10:1); }
   else if(e.key==='ArrowLeft'){ e.preventDefault(); step(e.shiftKey?-10:-1); }
   else if(e.key===' '){ e.preventDefault(); $('bPlay').click(); }
@@ -1211,7 +1226,7 @@ function render(flashId){
     rb.appendChild(tr);
   });
   $('resNote').innerHTML=notes.map(n=>'<div class="note">'+n+'</div>').join('');
-  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay(); $('bAutoClear').hidden=!marks.some(m=>m.auto);
+  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay();
   const pr=computePhases(), pb=$('phaseRes'); pb.innerHTML='';
   if(!pr.length){ pb.innerHTML='<tr><td class="l muted" colspan="8">区切り地点に印をつけると表示します。</td></tr>'; }
   pr.forEach(r=>{
@@ -1417,47 +1432,68 @@ $('histFile').onchange=async e=>{
   }catch(err){ $('histAddMsg').textContent='このファイルは読み込めませんでした。「記録の控えを保存」で作ったファイルを選んでください。'; }
 };
 
-// ---- ズーム（選んだ範囲を映像の枠いっぱいに拡大して見る）----
+// ---- ズーム（映像の右下の ＋ − で拡大・縮小。拡大中はドラッグで移動、2本指で拡大）----
 function contentBox(){   // 映像の枠の中で、実際に絵が映っている部分
   const ew=v.clientWidth, eh=v.clientHeight, vw=v.videoWidth, vh=v.videoHeight;
   if(!ew||!eh||!vw||!vh) return null;
   const k=Math.min(ew/vw,eh/vh); return {ew,eh,k,ox:(ew-vw*k)/2,oy:(eh-vh*k)/2,vw,vh};
 }
-function applyZoom(){
-  const on=!!roi && $('zoomOn').checked, b=contentBox();
-  $('zoomOn').disabled=!roi;
-  if(!on||!b){ v.style.transform=''; return; }
-  const X=b.ox+roi.x*b.vw*b.k, Y=b.oy+roi.y*b.vh*b.k, W=roi.w*b.vw*b.k, H=roi.h*b.vh*b.k;
-  const s=Math.min(b.ew/W,b.eh/H), tx=b.ew/2-(X+W/2)*s, ty=b.eh/2-(Y+H/2)*s;
-  v.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';
+const ZMAX=8;
+function clampZoom(b){   // 映像の外が見えないように、見る場所をおさえる
+  zoom.s=Math.max(1,Math.min(ZMAX,zoom.s)); if(!b) return;
+  const W=b.vw*b.k, H=b.vh*b.k, hx=b.ew/(2*zoom.s), hy=b.eh/(2*zoom.s);
+  let px=b.ox+zoom.cx*W, py=b.oy+zoom.cy*H;
+  px=W>=2*hx?Math.max(b.ox+hx,Math.min(b.ox+W-hx,px)):b.ox+W/2;
+  py=H>=2*hy?Math.max(b.oy+hy,Math.min(b.oy+H-hy,py)):b.oy+H/2;
+  zoom.cx=(px-b.ox)/W; zoom.cy=(py-b.oy)/H;
 }
-$('zoomOn').onchange=applyZoom;
+function applyZoom(){
+  const b=contentBox(); clampZoom(b); const on=zoom.s>1.001;
+  $('zLv').textContent=(Math.round(zoom.s*10)/10)+'倍'; $('zOut').disabled=!on; $('zReset').disabled=!on; $('zIn').disabled=zoom.s>=ZMAX-1e-6;
+  v.classList.toggle('zoomed',on); v.style.touchAction=on?'none':'pan-y';
+  if(!on||!b){ v.style.transform=''; return; }
+  const px=b.ox+zoom.cx*b.vw*b.k, py=b.oy+zoom.cy*b.vh*b.k;
+  v.style.transform='translate('+(b.ew/2-px*zoom.s)+'px,'+(b.eh/2-py*zoom.s)+'px) scale('+zoom.s+')';
+}
+function zoomAt(ns, qx, qy){   // qx,qy：映像の枠の中の位置（その点が動かないように拡大・縮小する）
+  const b=contentBox(); if(!b) return; clampZoom(b); const s=zoom.s;
+  const px=b.ox+zoom.cx*b.vw*b.k, py=b.oy+zoom.cy*b.vh*b.k, tx=b.ew/2-px*s, ty=b.eh/2-py*s;
+  if(qx===undefined){ qx=b.ew/2; qy=b.eh/2; }
+  ns=Math.max(1,Math.min(ZMAX,ns));
+  const cx=(qx-tx)/s, cy=(qy-ty)/s, npx=(b.ew/2-(qx-ns*cx))/ns, npy=(b.eh/2-(qy-ns*cy))/ns;
+  zoom.s=ns; zoom.cx=(npx-b.ox)/(b.vw*b.k); zoom.cy=(npy-b.oy)/(b.vh*b.k); applyZoom();
+}
+$('zIn').onclick=()=>{ zoomAt(zoom.s*1.5); $('zIn').blur(); };
+$('zOut').onclick=()=>{ zoomAt(zoom.s/1.5); $('zOut').blur(); };
+$('zReset').onclick=()=>{ zoom={s:1,cx:0.5,cy:0.5}; applyZoom(); $('zReset').blur(); };
 new ResizeObserver(()=>applyZoom()).observe(v);
-v.addEventListener('loadedmetadata',()=>setTimeout(applyZoom,30));
-(function(){   // 範囲を選ぶ
-  const layer=$('roiLayer'), rect=$('roiRect'); let p0=null, cur=null;
-  const pos=e=>{ const r=layer.getBoundingClientRect(); return {x:Math.max(0,Math.min(r.width,e.clientX-r.left)), y:Math.max(0,Math.min(r.height,e.clientY-r.top))}; };
-  $('bRoi').onclick=()=>{ if(!v.src){ flashMsg('先に映像を選んでください。'); return; } v.pause(); $('zoomOn').checked=false; applyZoom(); rect.hidden=true; layer.classList.add('on'); };
-  layer.addEventListener('pointerdown',e=>{ p0=pos(e); cur=p0; layer.setPointerCapture(e.pointerId); draw(); rect.hidden=false; e.preventDefault(); });
-  layer.addEventListener('pointermove',e=>{ if(!p0) return; cur=pos(e); draw(); });
-  layer.addEventListener('pointerup',()=>{ if(!p0) return; finish(); });
-  function draw(){ rect.style.left=Math.min(p0.x,cur.x)+'px'; rect.style.top=Math.min(p0.y,cur.y)+'px'; rect.style.width=Math.abs(cur.x-p0.x)+'px'; rect.style.height=Math.abs(cur.y-p0.y)+'px'; }
-  function finish(){
-    const a=p0, c=cur; p0=null;
-    const b=contentBox(), lr=layer.getBoundingClientRect(), vr=v.getBoundingClientRect();   // 隠す前に位置を測る
-    layer.classList.remove('on'); rect.hidden=true; if(!b) return;
-    const offX=vr.left-lr.left, offY=vr.top-lr.top;   // 枠と映像の位置の差
-    const toV=p=>({x:(p.x-offX-b.ox)/(b.vw*b.k), y:(p.y-offY-b.oy)/(b.vh*b.k)});
-    const A=toV(a), C=toV(c), x=Math.max(0,Math.min(A.x,C.x)), y=Math.max(0,Math.min(A.y,C.y));
-    const w=Math.min(1,Math.max(A.x,C.x))-x, hh=Math.min(1,Math.max(A.y,C.y))-y;
-    if(w<0.03||hh<0.03){ flashMsg('範囲が小さすぎます。もう少し大きく囲んでください。'); return; }
-    roi={x,y,w,h:hh}; store(); $('zoomOn').checked=true; applyZoom();
-    $('zoomInfo').textContent='範囲を選びました。「ズームして見る」のチェックで、拡大を入れたり外したりできます。';
-  }
+v.addEventListener('loadedmetadata',()=>{ $('zoomBar').classList.add('on'); setTimeout(applyZoom,30); });
+(function(){   // ドラッグで移動、2本指で拡大・縮小、パソコンは Ctrl＋ホイール（タッチパッドの2本指）でも
+  const pts=new Map();
+  const loc=e=>{ const r=v.parentElement.getBoundingClientRect(); return {x:e.clientX-r.left-v.offsetLeft, y:e.clientY-r.top-v.offsetTop}; };
+  v.addEventListener('pointerdown',e=>{
+    if(!v.src) return; if(zoom.s<=1.001 && e.pointerType!=='touch') return;
+    pts.set(e.pointerId,loc(e)); try{ v.setPointerCapture(e.pointerId); }catch(err){}
+    if(zoom.s>1.001) v.classList.add('panning');
+  });
+  v.addEventListener('pointermove',e=>{
+    if(!pts.has(e.pointerId)) return;
+    const p=loc(e), old=pts.get(e.pointerId);
+    if(pts.size===1){
+      pts.set(e.pointerId,p); if(zoom.s<=1.001) return;
+      const b=contentBox(); if(!b) return;
+      zoom.cx-=(p.x-old.x)/zoom.s/(b.vw*b.k); zoom.cy-=(p.y-old.y)/zoom.s/(b.vh*b.k); applyZoom();
+    } else if(pts.size===2){
+      const other=[...pts.entries()].find(([id])=>id!==e.pointerId)[1];
+      const d0=Math.hypot(old.x-other.x,old.y-other.y), d1=Math.hypot(p.x-other.x,p.y-other.y);
+      pts.set(e.pointerId,p);
+      if(d0>8) zoomAt(zoom.s*d1/d0,(p.x+other.x)/2,(p.y+other.y)/2);
+    }
+  });
+  const end=e=>{ pts.delete(e.pointerId); if(!pts.size) v.classList.remove('panning'); };
+  v.addEventListener('pointerup',end); v.addEventListener('pointercancel',end);
+  v.addEventListener('wheel',e=>{ if(!v.src||!e.ctrlKey) return; e.preventDefault(); const p=loc(e); zoomAt(zoom.s*Math.exp(-e.deltaY*0.01),p.x,p.y); },{passive:false});
 })();
-
-// 前の版で自動でつけた印（黄色）をまとめて消す
-$('bAutoClear').onclick=()=>{ const n=marks.filter(m=>m.auto).length; marks=marks.filter(m=>!m.auto); store(); render(); renderTicks(); $('zoomInfo').textContent='自動の印 '+n+' 回を消しました。'; };
 
 render();
 renderHist();
