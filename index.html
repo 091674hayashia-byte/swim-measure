@@ -99,7 +99,7 @@ section{min-width:0}
 <body>
 <header>
   <div class="openout" id="openOut" hidden>
-    <p><b>LINEの中で開いています。</b>LINEの中では映像を選べないことがあります。下のボタンで、スマホのブラウザに切り替えてください。</p>
+    <p><b>LINEの中で開いています。</b>自動でブラウザに切り替えています。切り替わらないときは、下のボタンを押してください（LINEの中では映像を選べないことがあります）。</p>
     <a class="openbtn" id="openOutBtn" href="#">ブラウザで開く</a>
     <p class="muted" id="openOutNote" style="margin:6px 0 0"></p>
   </div>
@@ -349,7 +349,17 @@ function setupOpenOut(ua){
   $('openOut').hidden=false;
   return true;
 }
-setupOpenOut(navigator.userAgent);
+// LINEで開いたら、自動でブラウザへ移る。
+// 1回目：「openExternalBrowser=1」を付けて開き直す（LINEがSafari・Chromeなどで開き直す。iPhone・Android共通）
+// 2回目（それでもLINEの中に残ったとき・Androidのみ）：Chromeを指定して開く。うまくいかなければボタンを押してもらう
+function autoOpenOut(ua){
+  if(!/ Line\//i.test(ua||'') || window.top!==window) return;   // claude.ai の公開ページ（枠の中）では動かさない
+  const tried=new URLSearchParams(location.search).has('openExternalBrowser');
+  if(!tried){ location.replace(location.origin+location.pathname+'?openExternalBrowser=1'); return; }
+  let again=false; try{ again=sessionStorage.getItem('swim-measure:intentTried')==='1'; sessionStorage.setItem('swim-measure:intentTried','1'); }catch(e){}
+  if(/Android/i.test(ua) && !again) setTimeout(()=>{ location.href=$('openOutBtn').href; },300);
+}
+if(setupOpenOut(navigator.userAgent)) autoOpenOut(navigator.userAgent);
 const v=$('video');
 const hasRVFC='requestVideoFrameCallback' in HTMLVideoElement.prototype;
 let curT=0;            // 表示中のコマの時刻（秒）
