@@ -134,6 +134,9 @@ section{min-width:0}
 .caldot{width:64px;height:64px;border-radius:50%;background:var(--btn);margin:8px auto;transition:background .05s}
 .caldot.on{background:#e0702d}
 .panel h3{font-size:14px;margin:14px 0 4px}
+.nextbadge{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:4;pointer-events:none;padding:3px 12px;border-radius:14px;background:rgba(11,122,90,.85);color:#fff;font-weight:800;font-size:18px;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+.nextbadge.done{background:rgba(60,60,60,.7);font-size:14px}
+@media (max-width:600px){.nextbadge{font-size:15px;top:6px}}
 .nextpass{margin-top:8px;padding:6px 10px;border-radius:8px;background:var(--pass-weak);color:var(--text);font-size:14px}
 .nextpass b{color:var(--pass);font-size:17px}
 .nextpass.warn{background:var(--warn-weak)}
@@ -168,6 +171,7 @@ section{min-width:0}
       <video id="video" playsinline muted></video>
       <div class="placeholder" id="ph">ここに映像が表示されます</div>
       <canvas class="ov" id="ov" aria-hidden="true"></canvas>
+      <div class="nextbadge" id="nextBadge" hidden></div>
       <div class="float" id="floatBar" title="左の ⠿ をつかむと、好きな場所へ動かせます">
         <span class="grip" id="floatGrip" aria-label="ボタンを動かす">⠿</span>
         <button class="start" data-mark="start">スタート<span class="lg">（0秒）にする</span> <span class="kbd">T</span></button>
@@ -1719,6 +1723,9 @@ function applySound(){ const x=parseFloat(document.querySelector('.volr').value)
 function updateNextPass(){
   const d=parseFloat($('dist').value), D=num('evDist',100), L=num('pool',25), ok=Number.isFinite(d);
   document.querySelectorAll('.pd').forEach(e=>e.textContent=ok?' '+fmtD(d)+'m':'');
+  const bd=$('nextBadge'), fin=marks.some(m=>m.type==='pass'&&Math.abs(m.dist-D)<1e-6);
+  if(bd){ bd.hidden=!v.src; bd.classList.toggle('done',fin&&!(ok&&d<=D+1e-6&&!marks.some(m=>m.type==='pass'&&Math.abs(m.dist-d)<1e-6)));
+    bd.textContent=(fin&&bd.classList.contains('done'))?'通過はすべて記録済み':ok?'次 '+fmtD(d)+'m'+(Math.abs(d-D)<1e-6?'（ゴール）':wallDists().some(w=>Math.abs(w-d)<1e-6)?'（壁）':''):'次の距離を入れてください'; }
   const box=$('nextPass'); if(!box) return; box.hidden=!v.src;
   const cps=checkpoints(), i=ok?cps.findIndex(c=>Math.abs(c-d)<1e-6):-1, done=marks.filter(m=>m.type==='pass').length;
   const walls=wallDists(), isWall=ok&&walls.some(w=>Math.abs(w-d)<1e-6);
@@ -1727,7 +1734,7 @@ function updateNextPass(){
   box.textContent='';
   const add=(t,b)=>{ const e=document.createElement(b?'b':'span'); e.textContent=t; box.appendChild(e); };
   add('測定中：'+ev+'　次に「通過」を押すと '); add(ok?fmtD(d)+' m':'（距離が未入力）',true);
-  add(ok?(isWall?'（壁）':'')+' の通過'+(i>=0?'（区切り地点 '+(i+1)+'/'+cps.length+'）':'')+(d>D+1e-6?'　※種目の距離より先です':''):'');
+  add(ok?(Math.abs(d-D)<1e-6?'（ゴール）':isWall?'（壁）':'')+' の通過'+(i>=0?'（区切り地点 '+(i+1)+'/'+cps.length+'）':'')+(d>D+1e-6?'　※種目の距離より先です':''):'');
   add('　記録済みの通過 '+done+' 個');
 }
 
