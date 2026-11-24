@@ -56,7 +56,7 @@ details li{margin:3px 0}
 .seekbar input[type=range]{width:100%;margin:0;accent-color:var(--accent);cursor:pointer}
 .ticks{position:relative;height:12px;margin:0 8px}
 .ticks i{position:absolute;top:0;width:2px;height:12px;border-radius:1px;transform:translateX(-1px)}
-.ticks i.start{background:var(--accent)} .ticks i.pass{background:var(--pass)} .ticks i.stroke{background:var(--stroke);height:7px;top:5px}
+.ticks i.start{background:#1f6feb;width:3px} .ticks i.pass{background:#12b886;width:3px} .ticks i.stroke{background:#f08a4b;height:7px;top:5px}
 .seektime{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
 .float{position:absolute;left:12px;top:12px;z-index:5;display:none;gap:6px;align-items:center;padding:6px;border-radius:10px;background:rgba(20,24,28,.62);backdrop-filter:blur(2px);touch-action:none;user-select:none}
 .float.on{display:flex}
@@ -122,8 +122,9 @@ section{min-width:0}
 .lane-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#f0b48b;border-radius:8px}
 .lane-fill.near{background:#e0702d}
 .lane-hit{position:absolute;right:0;top:0;bottom:0;width:6px;background:var(--stroke)}
-.rbtns{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px}
+.rbtns{display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px;margin-top:8px}
 .rbtns button{font-size:20px;font-weight:800;padding:20px 6px;border-width:3px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.rbtns button.start{background:var(--accent-weak);color:var(--accent);border-color:var(--accent)}
 .rbtns button.pass{background:var(--pass-weak);color:var(--pass);border-color:var(--pass)}
 .rbtns button.stroke{background:var(--stroke-weak);color:var(--stroke);border-color:var(--stroke)}
 .rbtns button.hit{transform:scale(.96);filter:brightness(1.15)}
@@ -133,7 +134,6 @@ section{min-width:0}
 .caldot{width:64px;height:64px;border-radius:50%;background:var(--btn);margin:8px auto;transition:background .05s}
 .caldot.on{background:#e0702d}
 .panel h3{font-size:14px;margin:14px 0 4px}
-.ticks i.tap{background:#c0392b}
 .flash{animation:fl .5s}
 @keyframes fl{from{background:var(--accent-weak)}to{background:transparent}}
 </style>
@@ -179,8 +179,8 @@ section{min-width:0}
     <div class="dock" id="dock"></div>
     <div class="rpad" id="rhyPad" hidden>
       <div class="lane" title="前のストロークの間隔から、次のストロークが来そうな時刻を示します。右端に届くころが押すタイミングです"><div class="lane-fill" id="laneFill"></div><span class="lane-hit"></span></div>
-      <div class="rbtns"><button class="pass" id="rPass">通過 <span class="kbd">P</span></button><button class="stroke" id="rStroke">ストローク <span class="kbd">S</span></button></div>
-      <div class="rrow"><span class="muted">速さ</span><button data-rate="0.25">0.25倍</button><button data-rate="0.5">0.5倍</button><button data-rate="1">1倍</button><button id="rPlay">再生／停止</button><button id="rEnd">リズムの記録を終わる</button></div>
+      <div class="rbtns"><button class="start" id="rStart">スタート <span class="kbd">T</span></button><button class="pass" id="rPass">通過 <span class="kbd">P</span></button><button class="stroke" id="rStroke">ストローク <span class="kbd">S</span></button></div>
+      <div class="rrow"><span class="muted">速さ</span><button data-rate="0.25">0.25倍</button><button data-rate="0.5">0.5倍</button><button data-rate="1">1倍</button><button id="rPlay">再生／停止</button><label class="muted">音 <input type="range" class="volr" min="0" max="1" step="0.05" value="0.3" style="width:80px;vertical-align:middle"></label><button id="rEnd">リズムの記録を終わる</button></div>
       <div class="muted" id="rInfo" style="margin-top:6px"></div>
     </div>
     <div class="seekbar">
@@ -197,6 +197,7 @@ section{min-width:0}
       <label class="muted">速さ
         <select id="rate"><option value="0.1">0.1倍</option><option value="0.25">0.25倍</option><option value="0.5">0.5倍</option><option value="1" selected>1倍</option></select>
       </label>
+      <label class="muted">映像の音 <input type="range" class="volr" min="0" max="1" step="0.05" value="0.3" style="width:90px;vertical-align:middle"></label>
       <span class="clock" id="clock">0.000 秒 ／ コマ 0</span>
     </div>
     <div class="row">
@@ -277,7 +278,7 @@ section{min-width:0}
   <div class="panel">
     <h2>リズムで記録（ゲーム感覚・試作）</h2>
     <div class="row" style="margin-top:0"><button class="big stroke" id="bRhy">リズムで記録を始める</button></div>
-    <p class="muted" style="margin:6px 0 0">映像を<b>止めずに</b>再生しながら、ストロークや通過の瞬間に、映像の下の大きなボタンを押します（パソコンは <span class="kbd">S</span> <span class="kbd">P</span> キーでも可）。<b>0.5倍や0.25倍のスロー</b>で押すと、ずれが小さくなります（0.25倍なら、押すずれ0.1秒が映像では0.025秒）。スタート（0秒）は、これまでどおり映像を止めて合わせてください。リズムで付けた印は、スライドバーの上に赤い線で出ます。</p>
+    <p class="muted" style="margin:6px 0 0">映像を<b>止めずに</b>再生しながら、スタート・通過・ストロークの瞬間に、映像の下の大きなボタンを押します（パソコンは <span class="kbd">T</span> <span class="kbd">P</span> <span class="kbd">S</span> キーでも可）。<b>0.5倍や0.25倍のスロー</b>で押すと、ずれが小さくなります（0.25倍なら、押すずれ0.1秒が映像では0.025秒）。スタートは、合図の音を聞きながら押すと合わせやすくなります（「映像の音」で音量を調整）。押したあと「② 見直し」で1コマずつ直せます。合図が電子音なら「合図の音でスタートを探す」で自動でも合わせられます。スライドバーの上の線は、スタートが青、通過が緑（長い線）、ストロークがオレンジ（短い線）です。</p>
     <h3>① 自分のくせの補正</h3>
     <div class="row" style="margin-top:0"><button id="bCal">くせを測る</button><label class="muted">押すずれ <input type="number" id="tapOff" step="5" value="0" style="width:70px"> ミリ秒（＋は遅れて押すくせ）</label></div>
     <div id="calBox" hidden><div class="caldot" id="calDot"></div><div class="rbtns" style="grid-template-columns:1fr"><button class="stroke" id="calTap">光ったら押す</button></div><p class="muted" id="calMsg" style="text-align:center;margin:6px 0 0"></p></div>
@@ -555,9 +556,10 @@ async function probeFps(){
   if(!hasRVFC) return;
   probing=true; $('fpsEst').textContent='（映像のコマ数を調べています…）';
   v.playbackRate=1;
-  try{ await v.play(); }catch(e){ probing=false; $('fpsEst').textContent='（再生すると自動で推定します）'; return; }
+  v.muted=true;
+  try{ await v.play(); }catch(e){ applySound(); probing=false; $('fpsEst').textContent='（再生すると自動で推定します）'; return; }
   setTimeout(()=>{
-    v.pause(); v.playbackRate=parseFloat($('rate').value); stepState=null; pendingT=null; v.currentTime=0; probing=false;
+    v.pause(); applySound(); v.playbackRate=parseFloat($('rate').value); stepState=null; pendingT=null; v.currentTime=0; probing=false;
     if(fpsEstVal){ $('bFpsUse').click(); $('loadMsg').textContent+=' 映像のコマ数を「約 '+$('fps').value+' コマ/秒」に設定しました。違う場合は直してください。'; }
     else $('fpsEst').textContent='（推定できませんでした。撮影の設定を入れてください）';
   },1300);
@@ -691,7 +693,7 @@ $('rate').onchange=()=>{ v.playbackRate=parseFloat($('rate').value); };
 
 function addMark(type){
   if(!v.src){ flashMsg('先に映像を選んでください。'); return; }
-  const rhy=rhyOn && type!=='start' && !v.paused;   // リズムで記録中：止めずに記録する
+  const rhy=rhyOn && !v.paused;   // リズムで記録中：止めずに記録する（スタートも）
   if(!rhy) v.pause();
   const waiting=!rhy && (pendingT!==null);   // まだ表示されていない行き先のコマに印をつける
   const m={id:nextId++, type, t:rhy?tapTime():(waiting?pendingT:curT)};
@@ -709,6 +711,7 @@ function addMark(type){
     marks=marks.filter(x=>x.type!=='start');   // スタートは1つだけ。押し直すと置き換える
     marks.push(m); store(); render(m.id); updateClock();
     flashMsg(had?'スタートを、このコマに置き換えました。':'このコマをスタート（0秒）にしました。');
+    if(rhy) rhyFeedback('start');
     return;
   }
   const dup=marks.find(x=>x.type===type && !!x.tap===!!m.tap && Math.abs(x.t-m.t)<0.5/fps());   // リズムの印とコマ送りの印は、比べられるように別々に数える
@@ -1227,7 +1230,7 @@ $('bExport').onclick=async()=>{
   v.pause(); stepState=null; pendingT=null;
   await seekAndWait(a); paint(v.currentTime);
   rec.start(500);
-  v.playbackRate=rate;
+  v.playbackRate=rate; v.muted=true;   // 作っている間は音を消す
   try{ await v.play(); }catch(e){}
   await new Promise(resolve=>{
     const tick=(now,meta)=>{
@@ -1238,7 +1241,7 @@ $('bExport').onclick=async()=>{
     };
     v.requestVideoFrameCallback(tick); v.addEventListener('ended',resolve,{once:true});
   });
-  v.pause(); v.playbackRate=parseFloat($('rate').value)||1;
+  v.pause(); applySound(); v.playbackRate=parseFloat($('rate').value)||1;
   // 最後に、まとめ画面を6秒ほど出す（すでに出ていればそのまま、出ていなければ0.4秒でふわっと出す）
   if(!exporting.stop){ const t=v.currentTime, a0=(OV&&OV.finT!==null)?Math.max(0,Math.min(1,(t-(OV.finT+1))/0.4)):0;
     for(let i=0;i<180 && !exporting.stop;i++){ paint(t, Math.min(1,a0+i/12)); await new Promise(r=>setTimeout(r,33)); } }
@@ -1589,9 +1592,9 @@ function rhyScore(){
   return 'ストローク '+st.length+' 回・間隔の平均 '+m.toFixed(2)+' 秒・ばらつき '+cv.toFixed(1)+'%（'+stars+'　小さいほどリズムが安定）';
 }
 function rhyFeedback(type){
-  const b=type==='pass'?$('rPass'):$('rStroke'); b.classList.add('hit'); setTimeout(()=>b.classList.remove('hit'),90);
-  beep(type==='pass'?660:880);
-  $('rInfo').textContent=(type==='pass'?'通過を記録しました。':'')+rhyScore();
+  const b=type==='pass'?$('rPass'):type==='start'?$('rStart'):$('rStroke'); b.classList.add('hit'); setTimeout(()=>b.classList.remove('hit'),90);
+  beep(type==='pass'?660:type==='start'?520:880);
+  $('rInfo').textContent=(type==='pass'?'通過を記録しました。':type==='start'?'スタート（0秒）を記録しました。ずれていたら「② 見直し」で直せます。':'')+rhyScore();
 }
 function laneTick(){   // 次のストロークが来そうな時刻へ向かって、帯が伸びる
   rhyRaf=0; if(!rhyOn) return;
@@ -1622,7 +1625,7 @@ $('rEnd').onclick=()=>{ v.pause(); setRhy(false); };
 $('rPlay').onclick=()=>{ if(!v.src) return; v.paused?v.play():v.pause(); $('rPlay').blur(); };
 document.querySelectorAll('#rhyPad [data-rate]').forEach(b=>b.onclick=()=>{ v.playbackRate=parseFloat(b.dataset.rate); $('rate').value=b.dataset.rate; markRate(); b.blur(); });
 // 大きなボタンは、指が触れた瞬間（離したときではなく）に記録する
-[['rStroke','stroke'],['rPass','pass']].forEach(([id,type])=>{
+[['rStroke','stroke'],['rPass','pass'],['rStart','start']].forEach(([id,type])=>{
   $(id).addEventListener('pointerdown',e=>{ e.preventDefault(); addMark(type); });
   $(id).addEventListener('click',e=>e.preventDefault());
 });
@@ -1656,12 +1659,12 @@ document.querySelectorAll('#rhyPad [data-rate]').forEach(b=>b.onclick=()=>{ v.pl
 })();
 
 // ② 見直し：印から印へ飛んで、1コマずつ直す
-function rvList(){ return marks.filter(m=>m.type==='stroke'||m.type==='pass').sort((a,b)=>a.t-b.t); }
+function rvList(){ return marks.filter(m=>m.type==='stroke'||m.type==='pass'||m.type==='start').sort((a,b)=>a.t-b.t); }
 function rvShow(){
   const L=rvList(), i=L.findIndex(m=>m.id===rvSel), m=L[i];
   if(!m){ $('rvInfo').textContent=''; return; }
   const r=rel(m.t);
-  $('rvInfo').textContent=(m.type==='pass'?'通過 '+fmtD(m.dist)+'m':'ストローク')+(m.tap?'（リズム）':'')+'　'+(i+1)+'/'+L.length+'　'+(Number.isFinite(r)?'スタートから '+r.toFixed(3)+' 秒':'映像 '+m.t.toFixed(3)+' 秒');
+  $('rvInfo').textContent=(m.type==='pass'?'通過 '+fmtD(m.dist)+'m':m.type==='start'?'スタート':'ストローク')+(m.tap?'（リズム）':'')+'　'+(i+1)+'/'+L.length+'　'+(Number.isFinite(r)&&m.type!=='start'?'スタートから '+r.toFixed(3)+' 秒':'映像 '+m.t.toFixed(3)+' 秒（コマ '+frameOf(m.t)+'）');
 }
 function rvGo(dir){
   const L=rvList(); if(!L.length){ $('rvInfo').textContent='印がありません。'; return; }
@@ -1673,7 +1676,7 @@ function rvGo(dir){
 $('rvPrev').onclick=()=>rvGo(-1); $('rvNext').onclick=()=>rvGo(1);
 function rvMove(n){
   const m=marks.find(x=>x.id===rvSel); if(!m){ $('rvInfo').textContent='先に「前の印」「次の印」で印を選んでください。'; return; }
-  const F=fps(); m.t=Math.max(0,Math.round((m.t+n/F)*F)/F); delete m.fix; store(); render(m.id); seekTo(m.t); rvShow();
+  const F=fps(); m.t=Math.max(0,Math.round((m.t+n/F)*F)/F); delete m.fix; store(); render(m.id); updateClock(); seekTo(m.t); rvShow();
 }
 $('rvM1').onclick=()=>rvMove(-1); $('rvP1').onclick=()=>rvMove(1);
 $('rvDel').onclick=()=>{ const L=rvList(), i=L.findIndex(m=>m.id===rvSel); if(i<0){ $('rvInfo').textContent='先に「前の印」「次の印」で印を選んでください。'; return; }
@@ -1696,6 +1699,16 @@ $('bTapCmp').onclick=()=>{
 };
 $('keepTap').onclick=()=>{ const n=marks.filter(m=>m.type==='stroke'&&!m.tap).length; marks=marks.filter(m=>!(m.type==='stroke'&&!m.tap)); store(); render(); $('cmpKeep').hidden=true; $('tapCmpInfo').textContent='コマ送りのストロークの印 '+n+' 回を消し、リズムの印を残しました（「元に戻す」で戻せます）。'; };
 $('keepFrame').onclick=()=>{ const n=marks.filter(m=>m.type==='stroke'&&m.tap).length; marks=marks.filter(m=>!(m.type==='stroke'&&m.tap)); store(); render(); $('cmpKeep').hidden=true; $('tapCmpInfo').textContent='リズムのストロークの印 '+n+' 回を消し、コマ送りの印を残しました（「元に戻す」で戻せます）。'; };
+
+// ---- 映像の音 ----
+var VOL_KEY='swim-measure:volume';
+function applySound(){ const x=parseFloat(document.querySelector('.volr').value)||0; v.volume=Math.max(0,Math.min(1,x)); v.muted=x<=0.001; }
+(function(){
+  let x=0.3; try{ const s0=parseFloat(localStorage.getItem(VOL_KEY)); if(Number.isFinite(s0)) x=s0; }catch(e){}
+  const rs=[...document.querySelectorAll('.volr')]; rs.forEach(r=>r.value=x);
+  rs.forEach(r=>r.addEventListener('input',()=>{ rs.forEach(o=>{ if(o!==r) o.value=r.value; }); applySound(); try{ localStorage.setItem(VOL_KEY,r.value); }catch(e){} }));
+  applySound();
+})();
 
 render();
 renderHist();
