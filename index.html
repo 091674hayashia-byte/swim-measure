@@ -106,6 +106,16 @@ section{min-width:0}
   .ctrl label,.ctrl .clock{grid-column:1/-1}
   button.big{width:100%}
 }
+/* スマホの縦画面：映像の上のボタンを、映像の下へ移して映像を見やすくする */
+.dock{display:none;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.dock.on{display:flex}
+.float.docked,.zbar.docked{position:static!important;left:auto!important;top:auto!important;background:transparent;backdrop-filter:none;padding:0}
+#floatBar.docked{flex:1 1 100%;gap:6px}
+#floatBar.docked .grip{display:none}
+#floatBar.docked button[data-mark]{flex:1 1 0;padding:9px 2px;font-size:14px}
+#floatBar.docked button.ur{flex:0 0 auto;padding:6px 10px}
+#zoomBar.docked{margin-left:auto}
+#zoomBar.docked span{color:var(--sub)}
 .flash{animation:fl .5s}
 @keyframes fl{from{background:var(--accent-weak)}to{background:transparent}}
 </style>
@@ -148,6 +158,7 @@ section{min-width:0}
         <button id="zOut" title="縮小" aria-label="縮小" disabled>－</button><span id="zLv">1倍</span><button id="zIn" title="拡大" aria-label="拡大">＋</button><button class="txt" id="zReset" title="元の大きさに戻す" disabled>戻す</button>
       </div>
     </div>
+    <div class="dock" id="dock"></div>
     <div class="seekbar">
       <div class="ticks" id="ticks"></div>
       <input type="range" id="seek" min="0" max="0" step="any" value="0" disabled aria-label="映像の時間を移動">
@@ -603,6 +614,19 @@ document.querySelectorAll('#floatBar button[data-mark]').forEach(b=>{
   const end=()=>{ if(!drag) return; drag=null; bar.classList.remove('dragging');
     try{ localStorage.setItem(KEY, JSON.stringify({px:+bar.dataset.px, py:+bar.dataset.py})); }catch(e){} };
   grip.addEventListener('pointerup',end); grip.addEventListener('pointercancel',end);
+})();
+
+// スマホの縦画面では、映像の上のボタンとズームのボタンを、映像のすぐ下に並べる（映像が隠れないように）
+(function(){
+  const mq=window.matchMedia('(orientation: portrait) and (max-width: 700px)');
+  const wrap=document.querySelector('.video-wrap'), dock=$('dock');
+  function dockBars(){
+    const on=mq.matches;
+    [$('floatBar'),$('zoomBar')].forEach(b=>{ if(on){ if(b.parentElement!==dock) dock.appendChild(b); b.classList.add('docked'); } else { if(b.parentElement!==wrap) wrap.appendChild(b); b.classList.remove('docked'); } });
+    dock.classList.toggle('on',on);
+  }
+  if(mq.addEventListener) mq.addEventListener('change',dockBars); else if(mq.addListener) mq.addListener(dockBars);
+  dockBars();
 })();
 
 // ---- 操作 ----
