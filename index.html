@@ -68,6 +68,14 @@ details li{margin:3px 0}
 .float button.stroke{background:#fbece3;color:#9a4518;border-color:#f08a4b}
 .float .kbd{background:rgba(255,255,255,.6);color:#1d2329}
 .ov{position:absolute;left:0;top:0;z-index:2;pointer-events:none}
+#video{transform-origin:0 0}
+.roi-layer{position:absolute;inset:0;z-index:7;cursor:crosshair;touch-action:none;display:none}
+.roi-layer.on{display:block}
+.roi-rect{position:absolute;border:2px solid #ffd54a;background:rgba(255,213,74,.12);box-shadow:0 0 0 9999px rgba(0,0,0,.35)}
+.roi-hint{position:absolute;left:8px;right:8px;top:8px;color:#fff;background:rgba(0,0,0,.6);border-radius:6px;padding:4px 8px;font-size:13px;pointer-events:none}
+.ticks i.auto{background:#d9a441}
+.tag.auto{background:#fff1cc;color:#7a5200}
+progress{width:160px}
 .cardwrap{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
 .cardwrap canvas{display:block;width:100%;height:auto}
 /* スマホ・タブレット向け */
@@ -124,6 +132,7 @@ section{min-width:0}
       <video id="video" playsinline muted></video>
       <div class="placeholder" id="ph">ここに映像が表示されます</div>
       <canvas class="ov" id="ov" aria-hidden="true"></canvas>
+      <div class="roi-layer" id="roiLayer"><div class="roi-hint">選手（腕が動く範囲）を指またはマウスで四角く囲んでください</div><div class="roi-rect" id="roiRect" hidden></div></div>
       <div class="float" id="floatBar" title="左の ⠿ をつかむと、好きな場所へ動かせます">
         <span class="grip" id="floatGrip" aria-label="ボタンを動かす">⠿</span>
         <button class="start" data-mark="start">スタート<span class="lg">（0秒）にする</span> <span class="kbd">T</span></button>
@@ -184,6 +193,26 @@ section{min-width:0}
       <button id="bUndo">最後の印を取り消す <span class="kbd">Backspace</span></button>
     </div>
     <p class="muted" style="margin:10px 0 0">操作：映像の下のスライドバーで時間を移動、映像の上のボタンは左の <b>⠿</b> をつかんで好きな場所へ動かせます。<span class="kbd">T</span> スタート（0秒）、<span class="kbd">←</span><span class="kbd">→</span> 1コマ送り、<span class="kbd">Shift</span>＋<span class="kbd">←</span><span class="kbd">→</span> 10コマ送り、<span class="kbd">スペース</span> 再生／停止。表の行をクリックすると、その場面に戻ります。</p>
+  </div>
+
+  <div class="panel">
+    <h2>ズームとストロークの自動計数（試作）</h2>
+    <div class="row" style="margin-top:0">
+      <button id="bRoi">ズームする範囲を選ぶ</button>
+      <label><input type="checkbox" id="zoomOn" disabled> ズームして見る</label>
+    </div>
+    <p class="muted" style="margin:6px 0 0">カメラを横に振って選手を追う映像を前提にしています。測る選手だけが入るように、腕が動く範囲を少し広めに囲みます（隣のコースは入れない）。</p>
+    <div class="row">
+      <button class="stroke" id="bAuto" disabled>ストロークを自動で探す</button>
+      <label class="muted">読み取りの速さ <select id="autoRate"><option value="2" selected>2倍（はやい）</option><option value="1">1倍（ていねい）</option></select></label>
+      <button id="bAutoStop" hidden>中止</button>
+      <progress id="autoProg" max="1" value="0" hidden></progress>
+    </div>
+    <div class="row">
+      <button id="bAutoCmp" disabled>手の印と比べる（精度の確認）</button>
+      <button id="bAutoClear" disabled>自動の印をすべて消す</button>
+    </div>
+    <p class="muted" id="autoInfo" style="margin:6px 0 0">使い方：①範囲を選ぶ ②はじめの2〜3回のストロークに、手で印をつける（毎回同じ動作の瞬間に） ③「ストロークを自動で探す」。手の印と同じ瞬間の動きを、スタートから最後の通過まで探して、黄色の印（自動）をつけます。間違いは印の一覧で消すか、手で足してください。</p>
   </div>
 
   <div class="panel">
@@ -396,6 +425,7 @@ if(setupOpenOut(navigator.userAgent)) autoOpenOut(navigator.userAgent);
 const v=$('video');
 const hasRVFC='requestVideoFrameCallback' in HTMLVideoElement.prototype;
 let curT=0;            // 表示中のコマの時刻（秒）
+let roi=null;            // ズームの範囲（映像に対する割合）{x,y,w,h}
 let marks=[];          // 記録順 {id,type,t,dist}
 let nextId=1, fileKey=null, objUrl=null;
 let fpsSamples=[], lastMeta=null, fpsEstVal=null;
@@ -411,8 +441,8 @@ const rel=t=>{ const s=startT(); return s===null?NaN:t-s; };
 // ---- 保存（このブラウザのみ）----
 const SET_IDS=['evDist','pool','phStart','phIn','phOut','phFin','distMode','sigDist'];
 function store(){ if(!fileKey) return; try{ const set={}; SET_IDS.forEach(id=>set[id]=$(id).value);
-  localStorage.setItem(fileKey, JSON.stringify({marks, nextId, meta:readMeta(), set, dist:$('dist').value, distStep:$('distStep').value, fps:$('fps').value})); }catch(e){} }
-function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; nextId=o.nextId||marks.length+1;
+  localStorage.setItem(fileKey, JSON.stringify({marks, nextId, roi, meta:readMeta(), set, dist:$('dist').value, distStep:$('distStep').value, fps:$('fps').value})); }catch(e){} }
+function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; roi=o.roi||null; nextId=o.nextId||marks.length+1;
   if(o.meta){$('subj').value=o.meta.subj||'';$('stroke').value=o.meta.stroke||'自由形';$('trial').value=o.meta.trial||1;$('memo').value=o.meta.memo||''; if(o.meta.date) $('mDate').value=o.meta.date;}
   if(o.set) SET_IDS.forEach(id=>{ if(o.set[id]!==undefined) $(id).value=o.set[id]; });
   if(o.dist) $('dist').value=o.dist; if(o.distStep) $('distStep').value=o.distStep; if(o.fps) $('fps').value=o.fps; return marks.length; }catch(e){ return 0; } }
@@ -467,14 +497,14 @@ $('file').addEventListener('change',e=>{
   if(objUrl) URL.revokeObjectURL(objUrl);
   objUrl=URL.createObjectURL(f);
   fileKey='swim-measure:'+f.name+':'+f.size;
-  curFile=f; sigCache=null; $('sigCands').hidden=true;
+  curFile=f; sigCache=null; $('sigCands').hidden=true; roi=null; autoSig=null;
   { const d=new Date(f.lastModified||Date.now()); $('mDate').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }   // 測定日の初め：映像ファイルの日付
   marks=[]; nextId=1; fpsSamples=[]; fpsEstVal=null; $('fpsEst').textContent='（再生すると自動で推定します）'; $('bFpsUse').disabled=true;
   let savedFps=false; try{ const s=localStorage.getItem(fileKey); savedFps=!!(s && JSON.parse(s).fps); }catch(e){}
   const n=restore(); needProbe=!savedFps;
   v.src=objUrl; $('ph').style.display='none';
   $('loadMsg').textContent=n?('前回この映像につけた印を読み込みました（'+n+'件）。'):'映像を読み込みました。';
-  render();
+  $('zoomOn').checked=!!roi; render(); applyZoom();
 });
 v.addEventListener('loadeddata',()=>{ curT=v.currentTime; updateClock(); if(needProbe){ needProbe=false; probeFps(); } });
 // 読み込んだ直後に約1秒だけ再生して、映像のコマ数を調べる（設定を保存した映像は除く）
@@ -552,7 +582,7 @@ document.addEventListener('pointerup',()=>{ if(seekDragging) setTimeout(()=>{ se
 function renderTicks(){   // スライドバーの上に、印の位置を細い線で示す
   const box=$('ticks'), d=v.duration||0; box.innerHTML='';
   if(!(d>0)) return;
-  marks.forEach(m=>{ const i=document.createElement('i'); i.className=m.type; i.style.left=(m.t/d*100)+'%'; box.appendChild(i); });
+  marks.forEach(m=>{ const i=document.createElement('i'); i.className=m.type+(m.auto?' auto':''); i.style.left=(m.t/d*100)+'%'; box.appendChild(i); });
 }
 
 // ---- 映像の上のボタン（つかんで動かせる）----
@@ -1171,7 +1201,7 @@ function render(flashId){
   sorted.forEach(m=>{
     const tr=document.createElement('tr'); tr.className='clickable'+(m.id===flashId?' flash':'');
     const tdType=document.createElement('td'); tdType.className='l';
-    tdType.innerHTML=m.type==='pass'?'<span class="tag pass">通過</span>':m.type==='start'?'<span class="tag start">スタート</span>':'<span class="tag stroke">ストローク</span>';
+    tdType.innerHTML=m.type==='pass'?'<span class="tag pass">通過</span>':m.type==='start'?'<span class="tag start">スタート</span>':m.auto?'<span class="tag auto">ストローク（自動）</span>':'<span class="tag stroke">ストローク</span>';
     const tdD=document.createElement('td');
     if(m.type==='pass'){ const inp=document.createElement('input'); inp.type='number'; inp.step='any'; inp.value=m.dist;
       inp.onclick=e=>e.stopPropagation(); inp.onchange=()=>{ const d=parseFloat(inp.value); if(Number.isFinite(d)){ m.dist=d; store(); render(); } }; tdD.appendChild(inp); }
@@ -1191,7 +1221,7 @@ function render(flashId){
     rb.appendChild(tr);
   });
   $('resNote').innerHTML=notes.map(n=>'<div class="note">'+n+'</div>').join('');
-  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay();
+  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay(); if(typeof updateAutoButtons==='function') try{ updateAutoButtons(); }catch(e){}
   const pr=computePhases(), pb=$('phaseRes'); pb.innerHTML='';
   if(!pr.length){ pb.innerHTML='<tr><td class="l muted" colspan="8">区切り地点に印をつけると表示します。</td></tr>'; }
   pr.forEach(r=>{
@@ -1397,8 +1427,185 @@ $('histFile').onchange=async e=>{
   }catch(err){ $('histAddMsg').textContent='このファイルは読み込めませんでした。「記録の控えを保存」で作ったファイルを選んでください。'; }
 };
 
+// ---- ズーム（選んだ範囲を映像の枠いっぱいに拡大して見る）----
+function contentBox(){   // 映像の枠の中で、実際に絵が映っている部分
+  const ew=v.clientWidth, eh=v.clientHeight, vw=v.videoWidth, vh=v.videoHeight;
+  if(!ew||!eh||!vw||!vh) return null;
+  const k=Math.min(ew/vw,eh/vh); return {ew,eh,k,ox:(ew-vw*k)/2,oy:(eh-vh*k)/2,vw,vh};
+}
+function applyZoom(){
+  const on=!!roi && $('zoomOn').checked, b=contentBox();
+  $('zoomOn').disabled=!roi; $('bAuto').disabled=!roi||!v.src;
+  if(!on||!b){ v.style.transform=''; return; }
+  const X=b.ox+roi.x*b.vw*b.k, Y=b.oy+roi.y*b.vh*b.k, W=roi.w*b.vw*b.k, H=roi.h*b.vh*b.k;
+  const s=Math.min(b.ew/W,b.eh/H), tx=b.ew/2-(X+W/2)*s, ty=b.eh/2-(Y+H/2)*s;
+  v.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';
+}
+$('zoomOn').onchange=applyZoom;
+new ResizeObserver(()=>applyZoom()).observe(v);
+v.addEventListener('loadedmetadata',()=>setTimeout(applyZoom,30));
+(function(){   // 範囲を選ぶ
+  const layer=$('roiLayer'), rect=$('roiRect'); let p0=null, cur=null;
+  const pos=e=>{ const r=layer.getBoundingClientRect(); return {x:Math.max(0,Math.min(r.width,e.clientX-r.left)), y:Math.max(0,Math.min(r.height,e.clientY-r.top))}; };
+  $('bRoi').onclick=()=>{ if(!v.src){ flashMsg('先に映像を選んでください。'); return; } v.pause(); $('zoomOn').checked=false; applyZoom(); rect.hidden=true; layer.classList.add('on'); };
+  layer.addEventListener('pointerdown',e=>{ p0=pos(e); cur=p0; layer.setPointerCapture(e.pointerId); draw(); rect.hidden=false; e.preventDefault(); });
+  layer.addEventListener('pointermove',e=>{ if(!p0) return; cur=pos(e); draw(); });
+  layer.addEventListener('pointerup',()=>{ if(!p0) return; finish(); });
+  function draw(){ rect.style.left=Math.min(p0.x,cur.x)+'px'; rect.style.top=Math.min(p0.y,cur.y)+'px'; rect.style.width=Math.abs(cur.x-p0.x)+'px'; rect.style.height=Math.abs(cur.y-p0.y)+'px'; }
+  function finish(){
+    const a=p0, c=cur; p0=null;
+    const b=contentBox(), lr=layer.getBoundingClientRect(), vr=v.getBoundingClientRect();   // 隠す前に位置を測る
+    layer.classList.remove('on'); rect.hidden=true; if(!b) return;
+    const offX=vr.left-lr.left, offY=vr.top-lr.top;   // 枠と映像の位置の差
+    const toV=p=>({x:(p.x-offX-b.ox)/(b.vw*b.k), y:(p.y-offY-b.oy)/(b.vh*b.k)});
+    const A=toV(a), C=toV(c), x=Math.max(0,Math.min(A.x,C.x)), y=Math.max(0,Math.min(A.y,C.y));
+    const w=Math.min(1,Math.max(A.x,C.x))-x, hh=Math.min(1,Math.max(A.y,C.y))-y;
+    if(w<0.03||hh<0.03){ flashMsg('範囲が小さすぎます。もう少し大きく囲んでください。'); return; }
+    roi={x,y,w,h:hh}; autoSig=null; store(); $('zoomOn').checked=true; applyZoom();
+    $('autoInfo').textContent='範囲を選びました。はじめの2〜3回のストロークに手で印をつけてから、「ストロークを自動で探す」を押してください。';
+  }
+})();
+
+// ---- ストロークの自動計数（試作）----
+// 囲んだ範囲を縦3×横4のマスに分け、マスごとの「動きの量」と「白い水しぶきの量」を毎コマ読み取る。
+// 手でつけたはじめの数回の印のまわりの動き方を手本にして、同じ動き方の瞬間を探す（左右の腕を取り違えにくい）。
+let autoSig=null, autoRun=null;
+const GX=4, GY=3, AHZ=50;   // マスの数、読み取った値をそろえる間隔（1秒に50点）
+function autoRange(){
+  const s=startT(), ps=marks.filter(m=>m.type==='pass').map(m=>m.t), d=v.duration||0;
+  const a=Math.max(0,(s!==null?s:0)-1), last=ps.length?Math.max(...ps):null;   // 1秒前から読む（はじめの手の印を手本に使えるように）
+  return {a, b:(last!==null&&last>a+1)?Math.min(d,last+0.3):d};
+}
+async function readSignal(a,b){
+  const cw=Math.max(16,Math.min(96,Math.round(roi.w*v.videoWidth))), ch=Math.max(12,Math.round(cw*(roi.h*v.videoHeight)/(roi.w*v.videoWidth)));
+  const c=document.createElement('canvas'); c.width=cw; c.height=ch; const x=c.getContext('2d',{willReadFrequently:true});
+  const sx=roi.x*v.videoWidth, sy=roi.y*v.videoHeight, sw=roi.w*v.videoWidth, sh=roi.h*v.videoHeight;
+  const ts=[], feats=[]; let prev=null;
+  autoRun={stop:false};
+  v.pause(); stepState=null; pendingT=null;
+  await seekAndWait(a);
+  const keepRate=v.playbackRate; v.playbackRate=parseFloat($('autoRate').value)||2;
+  try{ await v.play(); }catch(e){}
+  await new Promise(resolve=>{
+    const tick=(now,meta)=>{
+      if(autoRun.stop){ resolve(); return; }
+      x.drawImage(v,sx,sy,sw,sh,0,0,cw,ch);
+      const d=x.getImageData(0,0,cw,ch).data, g=new Float32Array(cw*ch), f=new Float32Array(GX*GY*2), cnt=new Float32Array(GX*GY);
+      for(let yy=0;yy<ch;yy++) for(let xx=0;xx<cw;xx++){
+        const i=yy*cw+xx, r=d[i*4], gg=d[i*4+1], bb=d[i*4+2], L=0.299*r+0.587*gg+0.114*bb; g[i]=L;
+        const cell=Math.min(GY-1,Math.floor(yy*GY/ch))*GX+Math.min(GX-1,Math.floor(xx*GX/cw)); cnt[cell]++;
+        if(prev) f[cell]+=Math.abs(L-prev[i]);
+        if(L>185 && Math.max(r,gg,bb)-Math.min(r,gg,bb)<45) f[GX*GY+cell]++;   // 白っぽい（水しぶき）
+      }
+      for(let k=0;k<GX*GY;k++){ f[k]/=cnt[k]||1; f[GX*GY+k]/=cnt[k]||1; }
+      // カメラの動きや明るさの変化は、範囲全体が同じように変わる。マス全体の中央の値を引いて、腕のある場所だけの変化を残す
+      for(const o of [0,GX*GY]){ const s=Array.from(f.slice(o,o+GX*GY)).sort((p,q)=>p-q), md=(s[(GX*GY-1)>>1]+s[GX*GY>>1])/2; for(let k=0;k<GX*GY;k++) f[o+k]-=md; }
+      if(prev){ ts.push(meta.mediaTime); feats.push(f); }
+      prev=g;
+      $('autoProg').value=Math.min(1,(meta.mediaTime-a)/Math.max(0.01,b-a));
+      if(meta.mediaTime>=b-1e-3){ resolve(); return; }
+      v.requestVideoFrameCallback(tick);
+    };
+    v.requestVideoFrameCallback(tick); v.addEventListener('ended',resolve,{once:true});
+  });
+  v.pause(); v.playbackRate=keepRate;
+  const stopped=autoRun.stop; autoRun=null;
+  if(stopped || ts.length<20) return null;
+  // 1秒に50点にそろえ、ゆっくりした変化（カメラの動きなど）を引き、少しならす
+  const C=GX*GY*2, N=Math.floor((ts[ts.length-1]-ts[0])*AHZ)+1, t0=ts[0], S=[];
+  for(let k=0;k<C;k++){
+    const y=new Float32Array(N); let j=0;
+    for(let i=0;i<N;i++){ const t=t0+i/AHZ; while(j<ts.length-2 && ts[j+1]<t) j++; const u=(t-ts[j])/Math.max(1e-6,ts[j+1]-ts[j]); y[i]=feats[j][k]*(1-Math.min(1,Math.max(0,u)))+feats[Math.min(ts.length-1,j+1)][k]*Math.min(1,Math.max(0,u)); }
+    const ma=(arr,w)=>{ const o=new Float32Array(arr.length), P=new Float64Array(arr.length+1); for(let i=0;i<arr.length;i++) P[i+1]=P[i]+arr[i];
+      for(let i=0;i<arr.length;i++){ const l=Math.max(0,i-w), r=Math.min(arr.length,i+w+1); o[i]=(P[r]-P[l])/(r-l); } return o; };
+    const slow=ma(y,Math.round(0.75*AHZ)), z=new Float32Array(N); for(let i=0;i<N;i++) z[i]=y[i]-slow[i];
+    const sm=ma(z,1); let sd=0; for(let i=0;i<N;i++) sd+=sm[i]*sm[i]; sd=Math.sqrt(sd/N)||1;
+    for(let i=0;i<N;i++) sm[i]/=sd; S.push(sm);
+  }
+  return {t0, N, S, ts, a, b, roiKey:JSON.stringify(roi)};
+}
+// 手本（手の印のまわり）と似ている瞬間を探す
+function detectStrokes(sig, seeds){
+  const sd=[...seeds].sort((p,q)=>p-q), gaps=[]; for(let i=1;i<sd.length;i++){ const g=sd[i]-sd[i-1]; if(g>0.3&&g<3.5) gaps.push(g); }
+  if(!gaps.length) return {err:'手の印は、続けてかいた2回以上が必要です（間が3.5秒以内）。'};
+  gaps.sort((p,q)=>p-q); const T=gaps[Math.floor(gaps.length/2)];
+  const W=Math.max(6,Math.min(Math.round(0.3*T*AHZ),40)), L=2*W+1, C=sig.S.length, idx=t=>Math.round((t-sig.t0)*AHZ);
+  const tpl=new Float32Array(C*L); let nUsed=0;
+  sd.forEach(t=>{ const c=idx(t); if(c-W<0||c+W>=sig.N) return; nUsed++; for(let k=0;k<C;k++) for(let j=0;j<L;j++) tpl[k*L+j]+=sig.S[k][c-W+j]; });
+  if(!nUsed) return {err:'手の印が、読み取った範囲の端に近すぎます。'};
+  // 手の印のたびに同じように動くマスほど重く見る
+  { const rms=[]; for(let k=0;k<C;k++){ let s=0,m=0; for(let j=0;j<L;j++) m+=tpl[k*L+j]; m/=L; for(let j=0;j<L;j++) s+=(tpl[k*L+j]-m)**2; rms.push(Math.sqrt(s/L)); }
+    const mr=rms.reduce((p,q)=>p+q,0)/C||1; for(let k=0;k<C;k++){ const w=rms[k]/mr; for(let j=0;j<L;j++) tpl[k*L+j]*=w; } }
+  let tm=0; for(let i=0;i<tpl.length;i++) tm+=tpl[i]; tm/=tpl.length; let tn=0; for(let i=0;i<tpl.length;i++){ tpl[i]-=tm; tn+=tpl[i]*tpl[i]; } tn=Math.sqrt(tn)||1;
+  const ncc=new Float32Array(sig.N).fill(-1);
+  for(let c=W;c<sig.N-W;c++){
+    let sm=0; for(let k=0;k<C;k++){ const s=sig.S[k]; for(let j=0;j<L;j++) sm+=s[c-W+j]; } const mu=sm/(C*L);
+    let num=0, den=0; for(let k=0;k<C;k++){ const s=sig.S[k], o=k*L; for(let j=0;j<L;j++){ const d=s[c-W+j]-mu; num+=d*tpl[o+j]; den+=d*d; } }
+    ncc[c]=num/(tn*(Math.sqrt(den)||1));
+  }
+  const seedScore=sd.map(t=>{ const c=idx(t); let best=-1; for(let j=-3;j<=3;j++) if(c+j>=0&&c+j<sig.N) best=Math.max(best,ncc[c+j]); return best; });
+  const thr=Math.max(0.25,0.4*seedScore.reduce((p,q)=>p+q,0)/seedScore.length);
+  const R=Math.max(2,Math.round(0.3*T*AHZ)), cand=[];
+  for(let c=1;c<sig.N-1;c++){ if(ncc[c]<thr) continue; let isMax=true; for(let j=Math.max(0,c-R);j<=Math.min(sig.N-1,c+R);j++) if(ncc[j]>ncc[c]){ isMax=false; break; } if(isMax) cand.push(c); }
+  cand.sort((p,q)=>ncc[q]-ncc[p]);
+  const minGap=0.65*T, out=[];
+  for(const c of cand){
+    const y0=ncc[c-1], y1=ncc[c], y2=ncc[c+1], den=y0-2*y1+y2, off=den<0?Math.max(-0.5,Math.min(0.5,0.5*(y0-y2)/den)):0;   // 山の頂上を細かく
+    const t=sig.t0+(c+off)/AHZ;
+    if(out.some(o=>Math.abs(o.t-t)<minGap)) continue;
+    out.push({t, score:ncc[c]});
+  }
+  // いちばん近いコマの時刻に合わせる
+  out.forEach(o=>{ let best=sig.ts[0]; for(const x of sig.ts) if(Math.abs(x-o.t)<Math.abs(best-o.t)) best=x; o.t=best; });
+  out.sort((p,q)=>p.t-q.t);
+  return {T, thr, list:out};
+}
+async function ensureSignal(){
+  const {a,b}=autoRange();
+  if(autoSig && autoSig.roiKey===JSON.stringify(roi) && autoSig.a<=a+1e-6 && autoSig.b>=b-1e-6) return autoSig;
+  $('bAuto').disabled=true; $('bAutoCmp').disabled=true; $('bAutoStop').hidden=false; $('autoProg').hidden=false; $('autoProg').value=0;
+  $('autoInfo').textContent='映像を読み取っています…（'+((b-a)/(parseFloat($('autoRate').value)||2)).toFixed(0)+'秒ほど。終わるまで画面をそのままにしてください）';
+  let sig=null; try{ sig=await readSignal(a,b); } finally{ $('bAutoStop').hidden=true; $('autoProg').hidden=true; applyZoom(); updateAutoButtons(); }
+  if(!sig){ $('autoInfo').textContent='読み取りを中止しました。'; return null; }
+  autoSig=sig; return sig;
+}
+function manualStrokes(){ return marks.filter(m=>m.type==='stroke'&&!m.auto).map(m=>m.t).sort((p,q)=>p-q); }
+function updateAutoButtons(){
+  const has=!!roi&&!!v.src; $('bAuto').disabled=!has||!!autoRun; $('bAutoCmp').disabled=!has||!!autoRun;
+  $('bAutoClear').disabled=!marks.some(m=>m.auto);
+}
+$('bAutoStop').onclick=()=>{ if(autoRun) autoRun.stop=true; };
+$('bAuto').onclick=async()=>{
+  if(!roi){ flashMsg('先にズームする範囲を選んでください。'); return; }
+  const {a,b}=autoRange(), seeds=manualStrokes().filter(t=>t>=a&&t<=b);
+  if(seeds.length<2){ $('autoInfo').textContent='はじめの2〜3回のストロークに、手で印をつけてください（毎回同じ動作の瞬間に）。それを手本にして探します。'; return; }
+  const sig=await ensureSignal(); if(!sig) return;
+  const r=detectStrokes(sig, seeds); if(r.err){ $('autoInfo').textContent=r.err; return; }
+  const before=marks.filter(m=>m.auto).length;
+  marks=marks.filter(m=>!(m.auto && m.t>=a-1e-6 && m.t<=b+1e-6));   // やり直したときは、前の自動の印を置き換える
+  const man=manualStrokes(); let add=0;
+  r.list.forEach(o=>{ if(man.some(t=>Math.abs(t-o.t)<0.3*r.T)) return; marks.push({id:nextId++, type:'stroke', t:o.t, auto:true}); add++; });
+  store(); render(); renderTicks(); updateAutoButtons(); seekTo(a);
+  $('autoInfo').textContent='自動で '+add+' 回の印をつけました（手の印 '+man.length+' 回、手本の間隔 約 '+r.T.toFixed(2)+' 秒）'+(before?'。前の自動の印は置き換えました':'')+'。映像で確かめ、間違いは印の一覧で消すか、手で足してください。';
+};
+$('bAutoClear').onclick=()=>{ const n=marks.filter(m=>m.auto).length; marks=marks.filter(m=>!m.auto); store(); render(); renderTicks(); updateAutoButtons(); $('autoInfo').textContent='自動の印 '+n+' 回を消しました。'; };
+// 精度の確認：手でつけた印のうち、はじめの3回だけを手本にして探し、残りの手の印と比べる
+$('bAutoCmp').onclick=async()=>{
+  if(!roi){ flashMsg('先にズームする範囲を選んでください。'); return; }
+  const {a,b}=autoRange(), man=manualStrokes().filter(t=>t>=a&&t<=b);
+  if(man.length<8){ $('autoInfo').textContent='比べるには、ある区間のストロークに手で8回以上印をつけてください（はじめの3回を手本にし、残りと比べます）。'; return; }
+  const sig=await ensureSignal(); if(!sig) return;
+  const r=detectStrokes(sig, man.slice(0,3)); if(r.err){ $('autoInfo').textContent=r.err; return; }
+  const test=man.slice(3), lo=test[0]-0.5*r.T, hi=test[test.length-1]+0.5*r.T, det=r.list.map(o=>o.t).filter(t=>t>=lo&&t<=hi);
+  const tol=Math.min(0.15,0.25*r.T), used=new Set(); let hit=0, errs=[];
+  test.forEach(t=>{ let bi=-1, bd=1e9; det.forEach((d,i)=>{ if(used.has(i)) return; const e=Math.abs(d-t); if(e<bd){ bd=e; bi=i; } }); if(bi>=0&&bd<=tol){ used.add(bi); hit++; errs.push(det[bi]-t); } });
+  const miss=test.length-hit, extra=det.length-used.size, mae=errs.length?errs.reduce((p,q)=>p+Math.abs(q),0)/errs.length:NaN;
+  $('autoInfo').textContent='精度の確認（手の印のはじめ3回を手本に、残り '+test.length+' 回と比較・±'+tol.toFixed(2)+'秒以内を一致）：一致 '+hit+' 回（'+Math.round(hit/test.length*100)+'%）、見落とし '+miss+' 回、余分 '+extra+' 回、一致したもののずれ 平均 '+(Number.isFinite(mae)?(mae*1000).toFixed(0)+' ミリ秒（約 '+(mae*fps()).toFixed(1)+' コマ）':'—')+'。印は変えていません。';
+};
+
 render();
 renderHist();
+updateAutoButtons();
 })();
 </script>
 </body>
