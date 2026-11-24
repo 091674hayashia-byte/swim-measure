@@ -33,6 +33,8 @@ input[type=number],input[type=text],select{background:var(--panel);border:1px so
 input[type=number]{width:80px}
 .clock{font-variant-numeric:tabular-nums;font-size:15px;padding:4px 10px;border-radius:6px;background:var(--accent-weak)}
 .muted{color:var(--sub);font-size:13px}
+.faster{color:#1b8a5a;font-weight:700}.slower{color:var(--warn);font-weight:700}
+.cands button{margin:2px 6px 2px 0}.cands button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .kbd{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:12px;margin:0 2px;background:var(--btn)}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:right;font-size:14px;white-space:nowrap}
@@ -162,6 +164,12 @@ section{min-width:0}
       <span class="muted" id="startInfo">スタートの合図（または壁を離れた瞬間）のコマで押すと、そこからの時間を表示します。</span>
     </div>
     <div class="row">
+      <button id="bSig">合図の音でスタートを探す</button>
+      <label class="muted">カメラとスピーカーの距離 <input type="number" id="sigDist" value="0" min="0" step="any" style="width:56px"> m</label>
+    </div>
+    <p class="muted" id="sigInfo" style="margin:4px 0 0">映像の音から、スタートの合図（電子音）を探して0秒にします。音は1秒に約340 m進むので、カメラがスピーカーから離れているときは距離を入れると、その分を差し引きます（例：17 mで0.05秒）。</p>
+    <div class="row cands" id="sigCands" hidden></div>
+    <div class="row">
       <button class="big pass" id="bPass">通過を記録 <span class="kbd">P</span></button>
       <label>この通過の距離（スタートから） <input type="number" id="dist" value="15" step="any"> m</label>
     </div>
@@ -223,6 +231,7 @@ section{min-width:0}
         <select id="stroke"><option>自由形</option><option>背泳ぎ</option><option>平泳ぎ</option><option>バタフライ</option><option>個人メドレー</option></select>
       </label>
       <label>試技 <input type="number" id="trial" value="1" min="1" style="width:60px"></label>
+      <label>測定日 <input type="date" id="mDate"></label>
     </div>
     <div class="row"><label style="flex:1">メモ <input type="text" id="memo" style="width:100%"></label></div>
   </div>
@@ -255,7 +264,9 @@ section{min-width:0}
       <button class="primary" id="bCardSave">画像を保存</button>
       <button id="bCardCopy">画像をコピー</button>
       <button id="bTextCopy">文字でコピー</button>
+      <button class="primary" id="bHistAdd">この結果を記録に残す</button>
     </div>
+    <p class="muted" id="histAddMsg" style="margin:6px 0 0"></p>
     <p class="muted" style="margin:6px 0 0">保存した画像を、LINEのトークに送れます。パソコンでは「画像をコピー」のあと、LINEのトークに貼り付けられます。「文字でコピー」は、結果を文章にしてコピーします。</p>
     <div id="shareBox" hidden style="margin-top:8px">
       <textarea id="shareText" readonly rows="8" style="width:100%;font:13px/1.5 inherit;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px"></textarea>
@@ -324,6 +335,28 @@ section{min-width:0}
       </table>
     </div>
   </div>
+
+  <div class="panel">
+    <h2>選手ごとの記録</h2>
+    <div class="row" style="margin-top:0">
+      <label>対象ID <select id="histSubj"></select></label>
+      <label>種目 <select id="histEv"></select></label>
+    </div>
+    <div class="scroll" style="margin-top:8px">
+      <table>
+        <thead><tr><th class="l">測定日</th><th class="l">種目</th><th>試技</th><th>タイム</th><th>前回との差</th><th class="l">ラップ（ストローク数）</th><th>ストローク<br>数の合計</th><th>泳ぎの区間<br>泳速度</th><th>ストローク<br>タイム</th><th>ストローク<br>長</th><th class="l">メモ</th><th></th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="histInfo" style="margin:6px 0 0"></p>
+    <div class="row">
+      <button id="bHistCsv">記録をCSVに保存</button>
+      <button id="bHistBackup">記録の控えを保存</button>
+      <button id="bHistRestore">控えから読み込む</button>
+      <input type="file" id="histFile" accept=".json,application/json" hidden>
+    </div>
+    <p class="muted" style="margin:6px 0 0">記録は、この端末のこのブラウザの中にだけ残ります（外へは送りません）。別のスマホやパソコンへ移すときは、「記録の控えを保存」でできたファイルを、移す先で「控えから読み込む」で読み込みます。「タイム」の★はその種目のいちばん速い記録、「前回との差」は同じ種目の1つ前の記録との差です（−は速くなった）。</p>
+  </div>
 </section>
 </main>
 
@@ -376,14 +409,14 @@ const startT=()=>{ const s=marks.find(m=>m.type==='start'); return s?s.t:null; }
 const rel=t=>{ const s=startT(); return s===null?NaN:t-s; };
 
 // ---- 保存（このブラウザのみ）----
-const SET_IDS=['evDist','pool','phStart','phIn','phOut','phFin','distMode'];
+const SET_IDS=['evDist','pool','phStart','phIn','phOut','phFin','distMode','sigDist'];
 function store(){ if(!fileKey) return; try{ const set={}; SET_IDS.forEach(id=>set[id]=$(id).value);
   localStorage.setItem(fileKey, JSON.stringify({marks, nextId, meta:readMeta(), set, dist:$('dist').value, distStep:$('distStep').value, fps:$('fps').value})); }catch(e){} }
 function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; nextId=o.nextId||marks.length+1;
-  if(o.meta){$('subj').value=o.meta.subj||'';$('stroke').value=o.meta.stroke||'自由形';$('trial').value=o.meta.trial||1;$('memo').value=o.meta.memo||'';}
+  if(o.meta){$('subj').value=o.meta.subj||'';$('stroke').value=o.meta.stroke||'自由形';$('trial').value=o.meta.trial||1;$('memo').value=o.meta.memo||''; if(o.meta.date) $('mDate').value=o.meta.date;}
   if(o.set) SET_IDS.forEach(id=>{ if(o.set[id]!==undefined) $(id).value=o.set[id]; });
   if(o.dist) $('dist').value=o.dist; if(o.distStep) $('distStep').value=o.distStep; if(o.fps) $('fps').value=o.fps; return marks.length; }catch(e){ return 0; } }
-function readMeta(){ return {subj:$('subj').value.trim(), stroke:$('stroke').value, trial:$('trial').value, memo:$('memo').value}; }
+function readMeta(){ return {subj:$('subj').value.trim(), stroke:$('stroke').value, trial:$('trial').value, memo:$('memo').value, date:$('mDate').value}; }
 ['subj','stroke','trial','memo','fps','dist','distStep'].forEach(id=>$(id).addEventListener('change',()=>{store();render();}));
 // 種目・プール・局面の長さを変えたら、区切り地点を作り直す。まだ通過の印がなければ、距離を最初の区切り地点に戻す
 SET_IDS.forEach(id=>$(id).addEventListener('change',()=>{
@@ -434,6 +467,8 @@ $('file').addEventListener('change',e=>{
   if(objUrl) URL.revokeObjectURL(objUrl);
   objUrl=URL.createObjectURL(f);
   fileKey='swim-measure:'+f.name+':'+f.size;
+  curFile=f; sigCache=null; $('sigCands').hidden=true;
+  { const d=new Date(f.lastModified||Date.now()); $('mDate').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }   // 測定日の初め：映像ファイルの日付
   marks=[]; nextId=1; fpsSamples=[]; fpsEstVal=null; $('fpsEst').textContent='（再生すると自動で推定します）'; $('bFpsUse').disabled=true;
   let savedFps=false; try{ const s=localStorage.getItem(fileKey); savedFps=!!(s && JSON.parse(s).fps); }catch(e){}
   const n=restore(); needProbe=!savedFps;
@@ -680,7 +715,7 @@ function summary(){
   return { meta, D, L, pool:(L===25?'短水路':'長水路'), total:(last&&last.d===D)?last.split:NaN,
     laps:laps.filter(l=>Number.isFinite(l.split)), start:pr.find(r=>r.kind==='start'), fin:pr.find(r=>r.kind==='fin'),
     turns, swims:pr.filter(r=>r.kind==='swim'), strokeRows:pr.filter(r=>r.kind!=='turn' && Number.isFinite(r.vel) && (r.kind==='swim'||r.n>0)),
-    strokeTotal:laps.length&&laps.every(l=>Number.isFinite(l.n))?laps.reduce((a,l)=>a+l.n,0):NaN, date:new Date().toLocaleDateString('ja-JP') };
+    strokeTotal:laps.length&&laps.every(l=>Number.isFinite(l.n))?laps.reduce((a,l)=>a+l.n,0):NaN, date:meta.date?meta.date.replace(/-/g,'/'):new Date().toLocaleDateString('ja-JP') };
 }
 function cardTitle(S){ return (S.meta.subj||'ID未入力')+'　'+S.D+'m '+S.meta.stroke; }
 function drawCard(){
@@ -1214,7 +1249,156 @@ $('bCsvCopy').onclick=()=>{
   try{ navigator.clipboard.writeText(t.value).then(()=>flashMsg('コピーしました。'),fallback); }catch(e){ fallback(); }
 };
 
+// ---- 合図の音でスタートを探す（音はこの端末の中で調べる）----
+let curFile=null, sigCache=null;
+async function findStartSignals(file){
+  const buf=await file.arrayBuffer();
+  const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC();
+  let audio; try{ audio=await new Promise((res,rej)=>{ const p=ac.decodeAudioData(buf,res,rej); if(p&&p.catch) p.catch(rej); }); } finally{ try{ ac.close(); }catch(e){} }
+  const sr=audio.sampleRate, n=audio.length;
+  // 1000 Hz より低い音（水の音・話し声の低い成分）を弱める
+  const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext, oc=new OAC(1,n,sr);
+  const src=oc.createBufferSource(); src.buffer=audio; const hp=oc.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1000;
+  src.connect(hp); hp.connect(oc.destination); src.start();
+  const x=(await oc.startRendering()).getChannelData(0);
+  const HOP=0.0025, hop=Math.max(1,Math.round(sr*HOP)), H=Math.floor(n/hop), E=new Float32Array(H);
+  for(let i=0;i<H;i++){ let s=0; for(let j=i*hop,k=j+hop;j<k;j++) s+=x[j]*x[j]; E[i]=s/hop; }
+  const Ps=new Float64Array(H+1); for(let i=0;i<H;i++) Ps[i+1]=Ps[i]+E[i];
+  const mean=(a,b)=>{ a=Math.max(0,a); b=Math.min(H,b); return b>a?(Ps[b]-Ps[a])/(b-a):0; };
+  const pre=Math.round(0.5/HOP), post=Math.round(0.1/HOP);   // 直前0.5秒の静けさと、直後0.1秒の音の大きさを比べる
+  let maxS=0; for(let i=1;i<H-post;i++){ const s=mean(i,i+post); if(s>maxS) maxS=s; }
+  const cand=[];
+  for(let i=1;i<H-post;i++){ const s=mean(i,i+post); if(s<maxS*0.02) continue; const r=s/(mean(i-pre,i-2)+maxS*1e-4); if(r>4) cand.push({i,r}); }
+  cand.sort((a,b)=>b.r-a.r);
+  const gap=Math.round(1/HOP), picked=[];
+  for(const c of cand){ if(picked.length>=3) break; if(picked.some(p=>Math.abs(p.i-c.i)<gap)) continue; picked.push(c); }
+  return picked.map((c,rank)=>{   // 音の立ち上がりの瞬間を細かく探す
+    const s=mean(c.i,c.i+post), b=mean(c.i-pre,c.i-2), th=b+0.25*(s-b);
+    let j=Math.max(1,c.i-20); while(j<c.i+post && E[j]<th) j++;
+    const thA=Math.sqrt(th); let k=Math.max(0,(j-1)*hop); const end=Math.min(n,(j+1)*hop); while(k<end && Math.abs(x[k])<thA) k++;
+    return {t:k/sr, score:c.r, rank};
+  }).sort((a,b)=>a.t-b.t);
+}
+function sigShift(){ const d=parseFloat($('sigDist').value); return Number.isFinite(d)&&d>0?d/343:0; }
+function setStartFromSig(c){
+  const t=Math.max(0,c.t-sigShift());
+  marks=marks.filter(x=>x.type!=='start');
+  const m={id:nextId++, type:'start', t, sig:true}; marks.push(m); store(); seekTo(t); render(m.id); updateClock();
+  [...$('sigCands').querySelectorAll('button')].forEach(b=>b.classList.toggle('on',+b.dataset.t===c.t));
+  $('sigInfo').textContent='合図の音を映像の '+c.t.toFixed(3)+' 秒に見つけ、'+(sigShift()?'音の遅れ '+sigShift().toFixed(3)+' 秒を差し引いて':'')+'0秒にしました。映像で確かめ、違うときは下の別の候補を押すか、手で「スタート（0秒）にする」を押し直してください。';
+}
+$('bSig').onclick=async()=>{
+  if(!curFile||!v.src){ flashMsg('先に映像を選んでください。'); return; }
+  $('bSig').disabled=true; $('sigInfo').textContent='音を調べています…（長い映像は少し時間がかかります）';
+  try{ if(!sigCache) sigCache=await findStartSignals(curFile); }
+  catch(e){ $('bSig').disabled=false; $('sigInfo').textContent='この映像では音を調べられませんでした（音が入っていない、またはこのブラウザが対応していない形式です）。スタートは手でつけてください。'; return; }
+  $('bSig').disabled=false;
+  if(!sigCache.length){ $('sigCands').hidden=true; $('sigInfo').textContent='合図らしい音が見つかりませんでした。スタートは手でつけてください。'; return; }
+  const box=$('sigCands'); box.innerHTML='<span class="muted">候補：</span>';
+  sigCache.forEach(c=>{ const b=document.createElement('button'); b.dataset.t=c.t; b.textContent=c.t.toFixed(2)+' 秒'+(c.rank===0?'（いちばん合図らしい）':''); b.onclick=()=>setStartFromSig(c); box.appendChild(b); });
+  box.hidden=false;
+  setStartFromSig(sigCache.find(c=>c.rank===0));
+};
+
+// ---- 選手ごとの記録（この端末の中に残す）----
+const HKEY='swim-measure:history';
+function loadHist(){ try{ const a=JSON.parse(localStorage.getItem(HKEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveHist(a){ try{ localStorage.setItem(HKEY,JSON.stringify(a)); return true; }catch(e){ return false; } }
+const escH=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fin=x=>typeof x==='number'&&Number.isFinite(x);
+function evKey(r){ return r.D+'m '+r.stroke+'（'+(+r.L===25?'短水路':'長水路')+'）'; }
+function makeRecord(){
+  const S=summary(), m=S.meta, sw=S.swims.filter(r=>fin(r.vel));
+  const swD=sw.reduce((a,r)=>a+(r.d2-r.d1),0), swT=sw.reduce((a,r)=>a+r.dt,0), vel=swT>0?swD/swT:NaN;
+  const sr=sw.filter(r=>fin(r.st)), wt=sr.reduce((a,r)=>a+r.dt,0), st=wt>0?sr.reduce((a,r)=>a+r.st*r.dt,0)/wt:NaN;   // 泳ぎの区間の平均（時間の重み）
+  return { id:Date.now(), key:fileKey+'#'+m.trial, saved:new Date().toISOString(), date:m.date||new Date().toISOString().slice(0,10),
+    subj:m.subj, stroke:m.stroke, trial:+m.trial, memo:m.memo, D:S.D, L:S.L, total:S.total,
+    laps:S.laps.map(l=>({d:l.d, split:l.split, lap:l.lap, n:l.n})),
+    start:S.start?S.start.dt:null, fin:S.fin?S.fin.dt:null,
+    turns:S.turns.map(t=>({n:t.n, turn:t.turn?t.turn.dt:null, in:t.in?t.in.dt:null, out:t.out?t.out.dt:null})),
+    strokeTotal:S.strokeTotal, swVel:vel, swSt:st, swTempo:60/st, swSl:vel*st };
+}
+$('bHistAdd').onclick=()=>{
+  const msg=t=>{ $('histAddMsg').textContent=t; };
+  if(!v.src){ msg('先に映像を選んでください。'); return; }
+  const m=readMeta(); if(!m.subj){ msg('「試技の情報」の対象ID（例：A01）を入れてから記録してください。'); $('subj').focus(); return; }
+  const r=makeRecord(); if(!r.laps.length){ msg('スタートと壁（25 m など）の通過の印をつけてから記録してください。'); return; }
+  const a=loadHist(), i=a.findIndex(x=>x.key===r.key);
+  if(i>=0){ r.id=a[i].id; a[i]=r; } else a.push(r);
+  if(!saveHist(a)){ msg('記録を保存できませんでした（このブラウザでは保存できない設定です）。'); return; }
+  $('histSubj').dataset.want=r.subj; $('histEv').dataset.want=evKey(r); renderHist();
+  msg((i>=0?'同じ映像・試技の記録を新しい結果に置き換えました。':'記録に残しました。')+'下の「選手ごとの記録」で前回と比べられます。');
+};
+function renderHist(){
+  const a=loadHist(), ss=$('histSubj'), es=$('histEv');
+  const ids=[...new Set(a.map(r=>r.subj))].sort();
+  const wantS=ss.dataset.want||ss.value||readMeta().subj; delete ss.dataset.want;
+  ss.innerHTML=ids.map(s=>'<option>'+escH(s)+'</option>').join('');
+  if(ids.includes(wantS)) ss.value=wantS;
+  const rs=a.filter(r=>r.subj===ss.value), evs=[...new Set(rs.map(evKey))];
+  const wantE=es.dataset.want!==undefined?es.dataset.want:es.value; delete es.dataset.want;
+  es.innerHTML='<option value="">すべての種目</option>'+evs.map(e=>'<option>'+escH(e)+'</option>').join('');
+  es.value=evs.includes(wantE)?wantE:'';
+  const tb=$('histBody'); tb.innerHTML='';
+  if(!a.length){ tb.innerHTML='<tr><td class="l muted" colspan="12">まだ記録がありません。結果の画像の下の「この結果を記録に残す」で残せます。</td></tr>'; $('histInfo').textContent=''; return; }
+  const list=rs.filter(r=>!es.value||evKey(r)===es.value).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||(x.trial-y.trial)||(x.id-y.id));
+  const best={}; list.forEach(r=>{ const k=evKey(r); if(fin(r.total)&&(!(k in best)||r.total<best[k])) best[k]=r.total; });
+  const prev={};
+  list.forEach(r=>{
+    const k=evKey(r), p=prev[k], d=(fin(p)&&fin(r.total))?r.total-p:NaN; if(fin(r.total)) prev[k]=r.total;
+    const tr=document.createElement('tr');
+    const td=(html,cls)=>{ const c=document.createElement('td'); if(cls) c.className=cls; c.innerHTML=html; tr.appendChild(c); return c; };
+    td(escH((r.date||'').replace(/-/g,'/')),'l'); td(escH(k),'l'); td(r.trial);
+    td((fin(r.total)?fmtT(r.total):'—')+(fin(r.total)&&r.total===best[k]?' ★':''));
+    td(fin(d)?((d>0?'+':d<0?'−':'±')+Math.abs(d).toFixed(2)):'—', fin(d)?(d<0?'faster':d>0?'slower':''):'');
+    td(escH((r.laps||[]).map(l=>fmtT(l.lap)+(fin(l.n)?'('+l.n+')':'')).join(' / ')),'l');
+    td(fin(r.strokeTotal)?r.strokeTotal+'回':'—'); td(fin(r.swVel)?f2(r.swVel):'—'); td(fin(r.swSt)?f2(r.swSt):'—'); td(fin(r.swSl)?f2(r.swSl):'—');
+    td(escH(r.memo||''),'l');
+    const del=document.createElement('button'); del.textContent='削除'; del.style.padding='1px 8px';
+    del.onclick=()=>{ if(del.dataset.armed){ saveHist(loadHist().filter(x=>x.id!==r.id)); renderHist(); return; }
+      del.dataset.armed='1'; del.textContent='もう一度押すと削除'; setTimeout(()=>{ if(del.isConnected){ delete del.dataset.armed; del.textContent='削除'; } },3000); };
+    td('').appendChild(del); tb.appendChild(tr);
+  });
+  if(!list.length) tb.innerHTML='<tr><td class="l muted" colspan="12">この条件の記録はありません。</td></tr>';
+  $('histInfo').textContent='記録は全部で '+a.length+' 件（'+ids.length+' 人）。表示中 '+list.length+' 件。';
+}
+$('histSubj').onchange=()=>{ $('histEv').dataset.want=''; renderHist(); };
+$('histEv').onchange=renderHist;
+$('bHistCsv').onclick=()=>{
+  const a=loadHist(); if(!a.length){ $('histAddMsg').textContent='まだ記録がありません。'; return; }
+  const nL=Math.max(...a.map(r=>(r.laps||[]).length)), nT=Math.max(0,...a.map(r=>(r.turns||[]).length));
+  const head=['測定日','対象ID','泳法','種目の距離(m)','プール','試技','タイム(秒)','スタート局面(秒)','フィニッシュ局面(秒)','ストローク数の合計','泳ぎの区間の泳速度(m/秒)','ストロークタイム(秒)','テンポ(回/分)','ストローク長(m)','メモ'];
+  for(let i=1;i<=nT;i++) head.push('ターン'+i+'合計(秒)','ターン'+i+'イン(秒)','ターン'+i+'アウト(秒)');
+  for(let i=1;i<=nL;i++) head.push(i+'本目 壁(m)',i+'本目 通過(秒)',i+'本目 ラップ(秒)',i+'本目 ストローク数');
+  const g=(x,k)=>fin(x)?x.toFixed(k):'';
+  const L=[head];
+  [...a].sort((x,y)=>(x.subj||'').localeCompare(y.subj||'')||(x.date||'').localeCompare(y.date||'')||(x.trial-y.trial)).forEach(r=>{
+    const row=[r.date,r.subj,r.stroke,r.D,+r.L===25?'短水路':'長水路',r.trial,g(r.total,2),g(r.start,3),g(r.fin,3),fin(r.strokeTotal)?r.strokeTotal:'',g(r.swVel,3),g(r.swSt,3),g(r.swTempo,1),g(r.swSl,3),r.memo||''];
+    for(let i=0;i<nT;i++){ const t=(r.turns||[])[i]||{}; row.push(g(t.turn,3),g(t.in,3),g(t.out,3)); }
+    for(let i=0;i<nL;i++){ const l=(r.laps||[])[i]||{}; row.push(fin(l.d)?l.d:'',g(l.split,2),g(l.lap,2),fin(l.n)?l.n:''); }
+    L.push(row);
+  });
+  saveCsv('選手ごとの記録_'+new Date().toISOString().slice(0,10)+'.csv','﻿'+L.map(r=>r.map(q).join(',')).join('\r\n'));
+};
+$('bHistBackup').onclick=()=>{
+  const a=loadHist(); if(!a.length){ $('histAddMsg').textContent='まだ記録がありません。'; return; }
+  saveBlob('泳ぎの映像計測_記録の控え_'+new Date().toISOString().slice(0,10)+'.json', new Blob([JSON.stringify({app:'swim-measure',version:1,records:a})],{type:'application/json'}), ()=>flashMsg('この画面では保存できませんでした。'));
+};
+$('bHistRestore').onclick=()=>$('histFile').click();
+$('histFile').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    const o=JSON.parse(await f.text()), recs=Array.isArray(o)?o:o.records;
+    if(!Array.isArray(recs)) throw 0;
+    const a=loadHist(); let add=0;
+    recs.forEach(r=>{ if(!r||typeof r!=='object'||!r.id||!r.subj) return; if(a.some(x=>x.id===r.id)) return; a.push(r); add++; });
+    if(!saveHist(a)) throw 0;
+    renderHist(); $('histAddMsg').textContent='控えから '+add+' 件を読み込みました（すでにある記録は重ねません）。';
+  }catch(err){ $('histAddMsg').textContent='このファイルは読み込めませんでした。「記録の控えを保存」で作ったファイルを選んでください。'; }
+};
+
 render();
+renderHist();
 })();
 </script>
 </body>
