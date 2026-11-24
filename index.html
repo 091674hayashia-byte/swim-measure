@@ -196,23 +196,13 @@ section{min-width:0}
   </div>
 
   <div class="panel">
-    <h2>ズームとストロークの自動計数（試作）</h2>
+    <h2>ズーム（拡大して見る）</h2>
     <div class="row" style="margin-top:0">
       <button id="bRoi">ズームする範囲を選ぶ</button>
       <label><input type="checkbox" id="zoomOn" disabled> ズームして見る</label>
+      <button id="bAutoClear" hidden>前の自動の印をすべて消す</button>
     </div>
-    <p class="muted" style="margin:6px 0 0">カメラを横に振って選手を追う映像を前提にしています。測る選手だけが入るように、腕が動く範囲を少し広めに囲みます（隣のコースは入れない）。</p>
-    <div class="row">
-      <button class="stroke" id="bAuto" disabled>ストロークを自動で探す</button>
-      <label class="muted">読み取りの速さ <select id="autoRate"><option value="2" selected>2倍（はやい）</option><option value="1">1倍（ていねい）</option></select></label>
-      <button id="bAutoStop" hidden>中止</button>
-      <progress id="autoProg" max="1" value="0" hidden></progress>
-    </div>
-    <div class="row">
-      <button id="bAutoCmp" disabled>手の印と比べる（精度の確認）</button>
-      <button id="bAutoClear" disabled>自動の印をすべて消す</button>
-    </div>
-    <p class="muted" id="autoInfo" style="margin:6px 0 0">使い方：①範囲を選ぶ ②はじめの3回ほどのストロークに、手で印をつける（毎回同じ動作の瞬間に。例：手前の手の入水） ③「ストロークを自動で探す」。手の印と同じ瞬間の動きを、スタートから最後の通過まで探して、黄色の印（自動）をつけます。折り返しのある種目は、復路（ターンのあと）にも2回ほど手で印をつけると、よく当たります。間違いは印の一覧で消すか、手で足してください。</p>
+    <p class="muted" id="zoomInfo" style="margin:6px 0 0">選手が小さく映るときは、範囲を指（マウス）で囲むと、その範囲を拡大して見られます。拡大したまま印をつけられます。</p>
   </div>
 
   <div class="panel">
@@ -497,7 +487,7 @@ $('file').addEventListener('change',e=>{
   if(objUrl) URL.revokeObjectURL(objUrl);
   objUrl=URL.createObjectURL(f);
   fileKey='swim-measure:'+f.name+':'+f.size;
-  curFile=f; sigCache=null; $('sigCands').hidden=true; roi=null; autoSig=null;
+  curFile=f; sigCache=null; $('sigCands').hidden=true; roi=null;
   { const d=new Date(f.lastModified||Date.now()); $('mDate').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }   // 測定日の初め：映像ファイルの日付
   marks=[]; nextId=1; fpsSamples=[]; fpsEstVal=null; $('fpsEst').textContent='（再生すると自動で推定します）'; $('bFpsUse').disabled=true;
   let savedFps=false; try{ const s=localStorage.getItem(fileKey); savedFps=!!(s && JSON.parse(s).fps); }catch(e){}
@@ -1221,7 +1211,7 @@ function render(flashId){
     rb.appendChild(tr);
   });
   $('resNote').innerHTML=notes.map(n=>'<div class="note">'+n+'</div>').join('');
-  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay(); if(typeof updateAutoButtons==='function') try{ updateAutoButtons(); }catch(e){}
+  renderPlan(); renderTicks(); drawCard(); buildOverlay(); liveOverlay(); $('bAutoClear').hidden=!marks.some(m=>m.auto);
   const pr=computePhases(), pb=$('phaseRes'); pb.innerHTML='';
   if(!pr.length){ pb.innerHTML='<tr><td class="l muted" colspan="8">区切り地点に印をつけると表示します。</td></tr>'; }
   pr.forEach(r=>{
@@ -1435,7 +1425,7 @@ function contentBox(){   // 映像の枠の中で、実際に絵が映ってい�
 }
 function applyZoom(){
   const on=!!roi && $('zoomOn').checked, b=contentBox();
-  $('zoomOn').disabled=!roi; $('bAuto').disabled=!roi||!v.src;
+  $('zoomOn').disabled=!roi;
   if(!on||!b){ v.style.transform=''; return; }
   const X=b.ox+roi.x*b.vw*b.k, Y=b.oy+roi.y*b.vh*b.k, W=roi.w*b.vw*b.k, H=roi.h*b.vh*b.k;
   const s=Math.min(b.ew/W,b.eh/H), tx=b.ew/2-(X+W/2)*s, ty=b.eh/2-(Y+H/2)*s;
@@ -1461,275 +1451,16 @@ v.addEventListener('loadedmetadata',()=>setTimeout(applyZoom,30));
     const A=toV(a), C=toV(c), x=Math.max(0,Math.min(A.x,C.x)), y=Math.max(0,Math.min(A.y,C.y));
     const w=Math.min(1,Math.max(A.x,C.x))-x, hh=Math.min(1,Math.max(A.y,C.y))-y;
     if(w<0.03||hh<0.03){ flashMsg('範囲が小さすぎます。もう少し大きく囲んでください。'); return; }
-    roi={x,y,w,h:hh}; autoSig=null; store(); $('zoomOn').checked=true; applyZoom();
-    $('autoInfo').textContent='範囲を選びました。はじめの3回ほどのストロークに手で印をつけてから、「ストロークを自動で探す」を押してください。';
+    roi={x,y,w,h:hh}; store(); $('zoomOn').checked=true; applyZoom();
+    $('zoomInfo').textContent='範囲を選びました。「ズームして見る」のチェックで、拡大を入れたり外したりできます。';
   }
 })();
 
-// ---- ストロークの自動計数（試作）----
-// ① 画面全体の絵のずれから、カメラの振りを毎コマ測る。
-// ② 囲んだ範囲を縦3×横4のマスに分け、カメラの振りの分を戻した「前のコマ」と比べて、マスごとの動きの量と「新しく出た白い水しぶき」の量を読む。
-//    水面の光の反射やコースロープは、カメラの振りといっしょに動くので、振りを戻すと消えやすい。
-// ③ 手の印のまわりの動き方を手本にする。泳ぐ向き（カメラを振る向き）ごとに手本を作り、復路の手の印がなければ左右を反転して使う。
-// ④ 手本に似た瞬間のうち、ストロークのリズム（間隔がほぼ一定）でつながるものを選ぶ。少し弱い山でも、リズムが合えば拾う。
-let autoSig=null, autoRun=null;
-const GX=4, GY=3, AHZ=50;   // マスの数、読み取った値をそろえる間隔（1秒に50点）
-function autoRange(){
-  const s=startT(), ps=marks.filter(m=>m.type==='pass').map(m=>m.t), d=v.duration||0;
-  const a=Math.max(0,(s!==null?s:0)-1), last=ps.length?Math.max(...ps):null;   // 1秒前から読む（はじめの手の印を手本に使えるように）
-  return {a, b:(last!==null&&last>a+1)?Math.min(d,last+0.3):d};
-}
-function panShift(cur,prev,W,H,R,RY,step){   // 前のコマから今のコマへ、絵が何画素ずれたか（差の合計がいちばん小さいずれ）
-  let best=Infinity, bx=0, by=0;
-  for(let dy=-RY;dy<=RY;dy++) for(let dx=-R;dx<=R;dx++){
-    let sum=0, n=0;
-    for(let y=RY;y<H-RY;y+=step){ const yp=y-dy; for(let x=R;x<W-R;x+=step){ sum+=Math.abs(cur[y*W+x]-prev[yp*W+x-dx]); n++; } }
-    sum/=n||1; if(sum<best){ best=sum; bx=dx; by=dy; }
-  }
-  return [bx,by];
-}
-async function readSignal(a,b){
-  const vw=v.videoWidth, vh=v.videoHeight;
-  // 画面全体（小さく読む）：カメラの振りを測る
-  const GW=128, GH=Math.max(16,Math.round(GW*vh/vw)), HW=GW>>1, HH=GH>>1;
-  const gc=document.createElement('canvas'); gc.width=GW; gc.height=GH; const gx=gc.getContext('2d',{willReadFrequently:true});
-  // 囲んだ範囲（まわりに余白をつけて読む。振りを戻したときに、前のコマの絵がはみ出さないように）
-  const cw=Math.max(16,Math.min(96,Math.round(roi.w*vw))), ch=Math.max(12,Math.round(cw*(roi.h*vh)/(roi.w*vw)));
-  const k=cw/(roi.w*vw), MX=Math.round(cw*0.3), MY=Math.round(ch*0.3), EW=cw+2*MX, EH=ch+2*MY;
-  const c=document.createElement('canvas'); c.width=EW; c.height=EH; const x=c.getContext('2d',{willReadFrequently:true});
-  const sx=roi.x*vw-MX/k, sy=roi.y*vh-MY/k, sw=EW/k, sh=EH/k;
-  const ts=[], feats=[], pans=[]; let prevE=null, prevG=null, prevH=null;
-  autoRun={stop:false};
-  v.pause(); stepState=null; pendingT=null;
-  await seekAndWait(a);
-  const keepRate=v.playbackRate; v.playbackRate=parseFloat($('autoRate').value)||2;
-  try{ await v.play(); }catch(e){}
-  await new Promise(resolve=>{
-    const tick=(now,meta)=>{
-      if(!autoRun||autoRun.stop){ resolve(); return; }
-      gx.drawImage(v,0,0,GW,GH); const gd=gx.getImageData(0,0,GW,GH).data, G=new Float32Array(GW*GH), Hh=new Float32Array(HW*HH);
-      for(let i=0;i<GW*GH;i++) G[i]=0.299*gd[i*4]+0.587*gd[i*4+1]+0.114*gd[i*4+2];
-      for(let y=0;y<HH;y++) for(let xx=0;xx<HW;xx++){ const i=2*y*GW+2*xx; Hh[y*HW+xx]=(G[i]+G[i+1]+G[i+GW]+G[i+GW+1])/4; }
-      x.clearRect(0,0,EW,EH); x.drawImage(v,sx,sy,sw,sh,0,0,EW,EH);
-      const d=x.getImageData(0,0,EW,EH).data, E=new Float32Array(EW*EH), Wt=new Uint8Array(EW*EH);
-      for(let i=0;i<EW*EH;i++){ const r=d[i*4], gg=d[i*4+1], bb=d[i*4+2]; E[i]=0.299*r+0.587*gg+0.114*bb; Wt[i]=(E[i]>185 && Math.max(r,gg,bb)-Math.min(r,gg,bb)<50)?1:0; }
-      if(prevE){
-        // カメラの振り：粗く探してから細かく
-        const [hx,hy]=panShift(Hh,prevH,HW,HH,8,3,1);
-        let bx=2*hx, by=2*hy, best=Infinity, fx=bx, fy=by;
-        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-          const X=bx+dx, Y=by+dy; if(Math.abs(X)>18||Math.abs(Y)>8) continue;
-          let sum=0,n=0; for(let y=8;y<GH-8;y+=2){ const yp=y-Y; if(yp<0||yp>=GH) continue; for(let xx=18;xx<GW-18;xx+=2){ sum+=Math.abs(G[y*GW+xx]-prevG[yp*GW+xx-X]); n++; } }
-          sum/=n||1; if(sum<best){ best=sum; fx=X; fy=Y; }
-        }
-        const ddx=fx*(vw/GW)*k, ddy=fy*(vh/GH)*k;   // 範囲の絵での、ずれの画素数
-        const f=new Float32Array(GX*GY*2), cnt=new Float32Array(GX*GY);
-        for(let yy=0;yy<ch;yy++) for(let xx=0;xx<cw;xx++){
-          const X=xx+MX, Y=yy+MY, i=Y*EW+X, px=X-ddx, py=Y-ddy;
-          const cell=Math.min(GY-1,Math.floor(yy*GY/ch))*GX+Math.min(GX-1,Math.floor(xx*GX/cw)); cnt[cell]++;
-          const x0=Math.floor(px), y0=Math.floor(py); if(x0<0||y0<0||x0>=EW-1||y0>=EH-1) continue;
-          const u=px-x0, w=py-y0, j=y0*EW+x0;
-          const P=prevE[j]*(1-u)*(1-w)+prevE[j+1]*u*(1-w)+prevE[j+EW]*(1-u)*w+prevE[j+EW+1]*u*w;
-          f[cell]+=Math.abs(E[i]-P);
-          if(Wt[i] && P<165) f[GX*GY+cell]++;   // 新しく出た白（水しぶき）
-        }
-        for(let q=0;q<GX*GY;q++){ f[q]/=cnt[q]||1; f[GX*GY+q]/=cnt[q]||1; }
-        // 明るさの変化などで範囲全体が同じように変わる分は、マス全体の中央の値を引いて除く
-        for(const o of [0,GX*GY]){ const srt=Array.from(f.slice(o,o+GX*GY)).sort((p,q)=>p-q), md=(srt[(GX*GY-1)>>1]+srt[GX*GY>>1])/2; for(let q=0;q<GX*GY;q++) f[o+q]-=md; }
-        ts.push(meta.mediaTime); feats.push(f); pans.push(fx/GW);   // 画面の幅に対する、絵のずれ（右へ＋）
-      }
-      prevE=E; prevG=G; prevH=Hh;
-      $('autoProg').value=Math.min(1,(meta.mediaTime-a)/Math.max(0.01,b-a));
-      if(meta.mediaTime>=b-1e-3){ resolve(); return; }
-      v.requestVideoFrameCallback(tick);
-    };
-    v.requestVideoFrameCallback(tick); v.addEventListener('ended',resolve,{once:true});
-  });
-  v.pause(); v.playbackRate=keepRate;
-  const stopped=autoRun.stop; autoRun=null;
-  if(stopped || ts.length<20) return null;
-  const C=GX*GY*2, N=Math.floor((ts[ts.length-1]-ts[0])*AHZ)+1, t0=ts[0], S=[];
-  const resample=get=>{ const y=new Float32Array(N); let j=0;
-    for(let i=0;i<N;i++){ const t=t0+i/AHZ; while(j<ts.length-2 && ts[j+1]<t) j++; const u=Math.min(1,Math.max(0,(t-ts[j])/Math.max(1e-6,ts[j+1]-ts[j]))); y[i]=get(j)*(1-u)+get(Math.min(ts.length-1,j+1))*u; } return y; };
-  const ma=(arr,w)=>{ const o=new Float32Array(arr.length), P=new Float64Array(arr.length+1); for(let i=0;i<arr.length;i++) P[i+1]=P[i]+arr[i];
-    for(let i=0;i<arr.length;i++){ const l=Math.max(0,i-w), r=Math.min(arr.length,i+w+1); o[i]=(P[r]-P[l])/(r-l); } return o; };
-  for(let q=0;q<C;q++){
-    const y=resample(j=>feats[j][q]);
-    const slow=ma(y,Math.round(0.75*AHZ)), z=new Float32Array(N); for(let i=0;i<N;i++) z[i]=y[i]-slow[i];
-    const sm=ma(z,1); let sd=0; for(let i=0;i<N;i++) sd+=sm[i]*sm[i]; sd=Math.sqrt(sd/N)||1;
-    for(let i=0;i<N;i++) sm[i]/=sd; S.push(sm);
-  }
-  // 泳ぐ向き：絵が右へ流れる＝カメラを左へ振る＝選手は左へ泳ぐ（-1）。1秒ならして、はっきりしないときは 0
-  const pv=resample(j=>pans[j]/Math.max(1e-3,(ts[Math.min(ts.length-1,j+1)]-ts[Math.max(0,j-1)])/(j>0&&j<ts.length-1?2:1)));
-  const pvs=ma(pv,Math.round(0.5*AHZ)), dir=new Int8Array(N);
-  for(let i=0;i<N;i++) dir[i]=pvs[i]>0.02?-1:pvs[i]<-0.02?1:0;   // 画面の幅の2%/秒より速く振っているとき
-  return {t0, N, S, dir, ts, a, b, roiKey:JSON.stringify(roi)};
-}
-function sigIdx(sig,t){ return Math.round((t-sig.t0)*AHZ); }
-// 手本：手の印のまわり（±0.3×間隔）の、マスごとの動き方の平均。手の印のたびに同じように動くマスほど重く見る
-function rawTemplate(sig, seeds, W){   // 手の印のまわりの値の合計
-  const C=sig.S.length, L=2*W+1, sum=new Float32Array(C*L); let n=0;
-  seeds.forEach(t=>{ const c=sigIdx(sig,t); if(c-W<0||c+W>=sig.N) return; n++; for(let q=0;q<C;q++) for(let j=0;j<L;j++) sum[q*L+j]+=sig.S[q][c-W+j]; });
-  return {sum, n};
-}
-function weightTemplate(sum, W){   // 手の印のたびに同じように動くマスほど重く見る
-  const L=2*W+1, C=sum.length/L, tpl=Float32Array.from(sum), rms=[];
-  for(let q=0;q<C;q++){ let s2=0,m=0; for(let j=0;j<L;j++) m+=tpl[q*L+j]; m/=L; for(let j=0;j<L;j++) s2+=(tpl[q*L+j]-m)**2; rms.push(Math.sqrt(s2/L)); }
-  const mr=rms.reduce((p,q)=>p+q,0)/C||1; for(let q=0;q<C;q++){ const w=rms[q]/mr; for(let j=0;j<L;j++) tpl[q*L+j]*=w; }
-  return tpl;
-}
-function mirrorTemplate(tpl, W){   // 左右を反転（逆向きに泳ぐときの手本）
-  const L=2*W+1, out=new Float32Array(tpl.length);
-  for(const o of [0,GX*GY]) for(let cy=0;cy<GY;cy++) for(let cx=0;cx<GX;cx++){ const a=o+cy*GX+cx, b=o+cy*GX+(GX-1-cx); for(let j=0;j<L;j++) out[b*L+j]=tpl[a*L+j]; }
-  return out;
-}
-function nccCurve(sig, tpl, W, lo, hi){
-  const C=sig.S.length, L=2*W+1, T=Float32Array.from(tpl);
-  let tm=0; for(let i=0;i<T.length;i++) tm+=T[i]; tm/=T.length; let tn=0; for(let i=0;i<T.length;i++){ T[i]-=tm; tn+=T[i]*T[i]; } tn=Math.sqrt(tn)||1;
-  const out=new Float32Array(sig.N).fill(-1);
-  for(let c=Math.max(W,lo||0);c<Math.min(sig.N-W,hi===undefined?sig.N:hi+1);c++){
-    let sm=0; for(let q=0;q<C;q++){ const s=sig.S[q]; for(let j=0;j<L;j++) sm+=s[c-W+j]; } const mu=sm/(C*L);
-    let num=0, den=0; for(let q=0;q<C;q++){ const s=sig.S[q], o=q*L; for(let j=0;j<L;j++){ const d=s[c-W+j]-mu; num+=d*T[o+j]; den+=d*d; } }
-    out[c]=num/(tn*(Math.sqrt(den)||1));
-  }
-  return out;
-}
-function seedDir(sig,t){ const c=Math.max(0,Math.min(sig.N-1,sigIdx(sig,t))); return sig.dir[c]; }
-function buildTpl(sig, sd, W){   // 向きごとの手本：両方の向きの手の印をすべて使う（逆向きのものは左右反転して足す）
-  const by={'1':[], '-1':[], '0':[]}; sd.forEach(t=>by[String(seedDir(sig,t))].push(t));
-  const rP=rawTemplate(sig,by['1'],W), rM=rawTemplate(sig,by['-1'],W);
-  let tP, tM, mirrored='';
-  if(!rP.n && !rM.n){ const r0=rawTemplate(sig,sd,W); if(!r0.n) return {err:'手の印が、読み取った範囲の端に近すぎます。'}; tP=weightTemplate(r0.sum,W); tM=mirrorTemplate(tP,W); mirrored='both'; }
-  else {
-    const mM=mirrorTemplate(rM.sum,W), sP=new Float32Array(rP.sum.length); for(let i=0;i<sP.length;i++) sP[i]=rP.sum[i]+mM[i];
-    tP=weightTemplate(sP,W); tM=mirrorTemplate(tP,W); mirrored=!rP.n?'1':!rM.n?'-1':'';
-  }
-  return {tP,tM,mirrored};
-}
-function detectOnce(sig, seeds, T0){
-  const sd=[...seeds].sort((p,q)=>p-q);
-  let gaps=[]; for(let i=1;i<sd.length;i++){ const g=sd[i]-sd[i-1]; if(g>0.3&&g<3.5) gaps.push(g); }
-  if(!gaps.length) return {err:'手の印は、続けてかいた2回以上が必要です（間が3.5秒以内）。'};
-  const gmin0=Math.min(...gaps); gaps=gaps.filter(g=>g<1.7*gmin0).sort((p,q)=>p-q);   // ターンをはさんだ間は除く
-  const T=T0||gaps[Math.floor(gaps.length/2)];
-  const W=Math.max(6,Math.min(Math.round(0.3*T*AHZ),40));
-  // 向きごとの手本
-  const tt=buildTpl(sig,sd,W); if(tt.err) return tt; const {tP,tM,mirrored}=tt;
-  const nP=nccCurve(sig,tP,W), nM=nccCurve(sig,tM,W), ncc=new Float32Array(sig.N);
-  for(let i=0;i<sig.N;i++){ const d=sig.dir[i]; ncc[i]= mirrored==='both' ? Math.max(nP[i],nM[i]) : d>0?nP[i]: d<0?nM[i]: Math.max(nP[i],nM[i]); }
-  const seedScore=sd.map(t=>{ const c=sigIdx(sig,t); let best=-1; for(let j=-3;j<=3;j++) if(c+j>=0&&c+j<sig.N) best=Math.max(best,ncc[c+j]); return best; });
-  const loo=sd.map((t,k)=>{ const rest=sd.filter((_,q)=>q!==k); const b2=buildTpl(sig,rest,W); if(b2.err) return null; const c=sigIdx(sig,t), d=sig.dir[Math.max(0,Math.min(sig.N-1,c))];
-    const a1=nccCurve(sig,b2.tP,W,c-3,c+3), a2=nccCurve(sig,b2.tM,W,c-3,c+3); let best=-1; for(let j=c-3;j<=c+3;j++){ if(j<0||j>=sig.N) continue; const x= b2.mirrored==='both'||!d ? Math.max(a1[j],a2[j]) : d>0?a1[j]:a2[j]; best=Math.max(best,x); } return best; }).filter(x=>x!==null);
-  const sMean=loo.length?loo.reduce((p,q)=>p+q,0)/loo.length:seedScore.reduce((p,q)=>p+q,0)/seedScore.length;
-  // 候補：手本に似ている山（近くでいちばん高いところ）
-  const R=Math.max(2,Math.round(0.2*T*AHZ)), cand=[];
-  for(let c=1;c<sig.N-1;c++){ if(ncc[c]<=0.05) continue; let isMax=true; for(let j=Math.max(0,c-R);j<=Math.min(sig.N-1,c+R);j++) if(ncc[j]>ncc[c]||(ncc[j]===ncc[c]&&j<c)){ isMax=false; break; } if(isMax) cand.push(c); }
-  // リズムでつなぐ：間隔が手本の0.6〜1.7倍で、前の間隔から大きく変わらない並びのうち、合計の点がいちばん高いものを選ぶ。
-  // 間が2回分あいたところ（1回見落とし）は、間のいちばん似ている瞬間を補う
-  const thr=Math.max(0.06,Math.min(0.2,0.4*sMean)), KAPPA=0.4, LAM=4, LAM0=1.5, MISSP=0.25;
-  // スタートと壁（ターン）の直後1秒は数えない。つながりは壁をまたがない
-  const resets=[startT(), ...wallDists().slice(0,-1).map(timeAt)].filter(x=>x!==null).sort((p,q)=>p-q);
-  for(let q=cand.length-1;q>=0;q--){ const t=sig.t0+cand[q]/AHZ; if(resets.some(r=>t>=r-0.05&&t<r+1.0)) cand.splice(q,1); }
-  const tc=cand.map(c=>sig.t0+c/AHZ), val=cand.map(c=>{ const d=ncc[c]-thr; return d>0?d:2*d; }), gmin=0.6*T, gmax=1.7*T, gmiss=2.6*T, K=cand.length;
-  const st=[];   // st[j] = 一つ前の候補 i ごとの {i, sc, back, ge(実際の1回分の間隔), miss}
-  const E=new Float64Array(K).fill(-Infinity), Earg=new Int32Array(K).fill(-1);
-  const PM=new Float64Array(K), PMj=new Int32Array(K);   // j までに終わったつながりの最高点（0＝なし）
-  const prefixBefore=t=>{ let lo=0, hi=K-1, r=-1; while(lo<=hi){ const m=(lo+hi)>>1; if(tc[m]<=t){ r=m; lo=m+1; } else hi=m-1; } return r<0?{v:0,j:-1}:{v:PM[r],j:PMj[r]}; };
-  for(let j=0;j<K;j++){
-    st[j]=[];
-    for(let i=j-1;i>=0;i--){
-      const g=tc[j]-tc[i]; if(g<gmin) continue; if(g>gmiss) break;
-      if(resets.some(r=>r>tc[i]&&r<tc[j])) break;
-      const miss=g>gmax?1:0, ge=miss?g/2:g; if(ge<gmin) continue;
-      const pre=prefixBefore(tc[i]-gmin);
-      let best=pre.v+val[i]-KAPPA-LAM0*((ge-T)/T)**2, back=-1-(pre.j+1);   // 新しいつながりの始まり（back<0：前のつながりの終わりを覚える）
-      for(const s of st[i]){ const sc=s.sc-LAM*((ge-s.ge)/T)**2; if(sc>best){ best=sc; back=s.i; } }
-      const sc=best+val[j]-(miss?MISSP:0);
-      st[j].push({i, sc, back, ge, miss});
-      if(sc>E[j]){ E[j]=sc; Earg[j]=i; }
-    }
-    const prev=j>0?{v:PM[j-1],j:PMj[j-1]}:{v:0,j:-1};
-    if(E[j]>prev.v){ PM[j]=E[j]; PMj[j]=j; } else { PM[j]=prev.v; PMj[j]=prev.j; }
-  }
-  const picked=[];   // 読み取った値の番号
-  const fillMid=(ci,cj)=>{ const mid=(ci+cj)/2, w=Math.round(0.25*T*AHZ); let bc=Math.round(mid); for(let c=Math.round(mid-w);c<=Math.round(mid+w);c++) if(c>0&&c<sig.N-1&&ncc[c]>ncc[bc]) bc=c; picked.push(bc); };
-  let endJ=K?PMj[K-1]:-1; if(K && PM[K-1]<=0) endJ=-1;
-  while(endJ>=0){
-    let j=endJ, i=Earg[j]; picked.push(cand[j]);
-    let next=-1;
-    while(i>=0){
-      picked.push(cand[i]);
-      const s=st[j].find(o=>o.i===i); if(!s) break;
-      if(s.miss) fillMid(cand[i],cand[j]);
-      if(s.back>=0){ j=i; i=s.back; }
-      else { next=-1-s.back-1; break; }
-    }
-    endJ=next;
-  }
-  const out=[...new Set(picked)].map(c=>{
-    const y0=ncc[c-1], y1=ncc[c], y2=ncc[c+1], den=y0-2*y1+y2, off=den<0?Math.max(-0.5,Math.min(0.5,0.5*(y0-y2)/den)):0;   // 山の頂上を細かく
-    return {t:sig.t0+(c+off)/AHZ, score:ncc[c]}; });
-  // いちばん近いコマの時刻に合わせる
-  out.forEach(o=>{ let best=sig.ts[0]; for(const x of sig.ts) if(Math.abs(x-o.t)<Math.abs(best-o.t)) best=x; o.t=best; });
-  out.sort((p,q)=>p.t-q.t);
-  let nDir={'1':0,'-1':0}; for(let i=0;i<sig.N;i++) if(sig.dir[i]) nDir[String(sig.dir[i])]++;
-  return {T, thr, list:out, mirrored, hasBoth:nDir['1']>AHZ&&nDir['-1']>AHZ};
-}
-// 2回探す：1回目で見つけたうち、よく似ていたもの（上位半分）も手本に加えて、手本をきれいにしてからもう一度探す
-function detectStrokes(sig, seeds){
-  const r1=detectOnce(sig, seeds); if(r1.err||r1.list.length<4) return r1;
-  const sc=r1.list.map(o=>o.score).sort((p,q)=>p-q), med=sc[Math.floor(sc.length/2)];
-  const more=r1.list.filter(o=>o.score>=med && !seeds.some(t=>Math.abs(t-o.t)<0.3*r1.T)).map(o=>o.t);
-  const r2=detectOnce(sig, [...seeds, ...more], r1.T); if(r2.err) return r1;
-  r2.mirrored=r1.mirrored; return r2;
-}
-async function ensureSignal(){
-  const {a,b}=autoRange();
-  if(autoSig && autoSig.roiKey===JSON.stringify(roi) && autoSig.a<=a+1e-6 && autoSig.b>=b-1e-6) return autoSig;
-  $('bAuto').disabled=true; $('bAutoCmp').disabled=true; $('bAutoStop').hidden=false; $('autoProg').hidden=false; $('autoProg').value=0;
-  $('autoInfo').textContent='映像を読み取っています…（'+((b-a)/(parseFloat($('autoRate').value)||2)).toFixed(0)+'秒ほど。終わるまで画面をそのままにしてください）';
-  let sig=null; try{ sig=await readSignal(a,b); } finally{ $('bAutoStop').hidden=true; $('autoProg').hidden=true; applyZoom(); updateAutoButtons(); }
-  if(!sig){ $('autoInfo').textContent='読み取りを中止しました。'; return null; }
-  autoSig=sig; return sig;
-}
-function manualStrokes(){ return marks.filter(m=>m.type==='stroke'&&!m.auto).map(m=>m.t).sort((p,q)=>p-q); }
-function updateAutoButtons(){
-  const has=!!roi&&!!v.src; $('bAuto').disabled=!has||!!autoRun; $('bAutoCmp').disabled=!has||!!autoRun;
-  $('bAutoClear').disabled=!marks.some(m=>m.auto);
-}
-$('bAutoStop').onclick=()=>{ if(autoRun) autoRun.stop=true; };
-$('bAuto').onclick=async()=>{
-  if(!roi){ flashMsg('先にズームする範囲を選んでください。'); return; }
-  const {a,b}=autoRange(), seeds=manualStrokes().filter(t=>t>=a&&t<=b);
-  if(seeds.length<2){ $('autoInfo').textContent='はじめの3回ほどのストロークに、手で印をつけてください（毎回同じ動作の瞬間に。例：手前の手の入水）。それを手本にして探します。'; return; }
-  const sig=await ensureSignal(); if(!sig) return;
-  const r=detectStrokes(sig, seeds); if(r.err){ $('autoInfo').textContent=r.err; return; }
-  const before=marks.filter(m=>m.auto).length;
-  marks=marks.filter(m=>!(m.auto && m.t>=a-1e-6 && m.t<=b+1e-6));   // やり直したときは、前の自動の印を置き換える
-  const man=manualStrokes(); let add=0;
-  r.list.forEach(o=>{ if(man.some(t=>Math.abs(t-o.t)<0.3*r.T)) return; marks.push({id:nextId++, type:'stroke', t:o.t, auto:true}); add++; });
-  store(); render(); renderTicks(); updateAutoButtons(); seekTo(a);
-  const mir=r.hasBoth&&r.mirrored&&r.mirrored!=='both'?'。逆向きの区間は、手本を左右反転して探しました（ターンのあとにも2回ほど手で印をつけると、よく当たります）':'';
-  $('autoInfo').textContent='自動で '+add+' 回の印をつけました（手の印 '+man.length+' 回、手本の間隔 約 '+r.T.toFixed(2)+' 秒）'+(before?'。前の自動の印は置き換えました':'')+mir+'。映像で確かめ、間違いは印の一覧で消すか、手で足してください。';
-};
-$('bAutoClear').onclick=()=>{ const n=marks.filter(m=>m.auto).length; marks=marks.filter(m=>!m.auto); store(); render(); renderTicks(); updateAutoButtons(); $('autoInfo').textContent='自動の印 '+n+' 回を消しました。'; };
-// 精度の確認：手でつけた印のうち、はじめの3回だけを手本にして探し、残りの手の印と比べる
-$('bAutoCmp').onclick=async()=>{
-  if(!roi){ flashMsg('先にズームする範囲を選んでください。'); return; }
-  const {a,b}=autoRange(), man=manualStrokes().filter(t=>t>=a&&t<=b);
-  if(man.length<8){ $('autoInfo').textContent='比べるには、ある区間のストロークに手で8回以上印をつけてください（はじめの3回を手本にし、残りと比べます）。'; return; }
-  const sig=await ensureSignal(); if(!sig) return;
-  const r=detectStrokes(sig, man.slice(0,3)); if(r.err){ $('autoInfo').textContent=r.err; return; }
-  const test=man.slice(3), lo=test[0]-0.5*r.T, hi=test[test.length-1]+0.5*r.T, det=r.list.map(o=>o.t).filter(t=>t>=lo&&t<=hi);
-  const tol=Math.min(0.15,0.25*r.T), used=new Set(); let hit=0, errs=[];
-  test.forEach(t=>{ let bi=-1, bd=1e9; det.forEach((d,i)=>{ if(used.has(i)) return; const e=Math.abs(d-t); if(e<bd){ bd=e; bi=i; } }); if(bi>=0&&bd<=tol){ used.add(bi); hit++; errs.push(det[bi]-t); } });
-  const miss=test.length-hit, extra=det.length-used.size, mae=errs.length?errs.reduce((p,q)=>p+Math.abs(q),0)/errs.length:NaN;
-  $('autoInfo').textContent='精度の確認（手の印のはじめ3回を手本に、残り '+test.length+' 回と比較・±'+tol.toFixed(2)+'秒以内を一致）：一致 '+hit+' 回（'+Math.round(hit/test.length*100)+'%）、見落とし '+miss+' 回、余分 '+extra+' 回、一致したもののずれ 平均 '+(Number.isFinite(mae)?(mae*1000).toFixed(0)+' ミリ秒（約 '+(mae*fps()).toFixed(1)+' コマ）':'—')+'。印は変えていません。';
-};
+// 前の版で自動でつけた印（黄色）をまとめて消す
+$('bAutoClear').onclick=()=>{ const n=marks.filter(m=>m.auto).length; marks=marks.filter(m=>!m.auto); store(); render(); renderTicks(); $('zoomInfo').textContent='自動の印 '+n+' 回を消しました。'; };
 
 render();
 renderHist();
-updateAutoButtons();
 })();
 </script>
 </body>
