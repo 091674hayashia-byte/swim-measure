@@ -958,6 +958,76 @@ function liveOverlay(){
 }
 $('ovOn').addEventListener('change',liveOverlay);new ResizeObserver(()=>liveOverlay()).observe(v);
 
+// ---- 録画したmp4（細切れ形式）を、ふつうのmp4に並べ直す（映像トラック1本だけを想定）----
+function defragMp4(u){
+  const dv=new DataView(u.buffer,u.byteOffset,u.byteLength);
+  const typ=o=>String.fromCharCode(u[o+4],u[o+5],u[o+6],u[o+7]);
+  const boxes=(s,e)=>{ const r=[]; let o=s; while(o+8<=e){ let sz=dv.getUint32(o), h=8; if(sz===1){ sz=Number(dv.getBigUint64(o+8)); h=16; } else if(sz===0) sz=e-o; if(sz<h||o+sz>e) throw new Error('box'); r.push({t:typ(o),s:o,e:o+sz,c:o+h}); o+=sz; } return r; };
+  const kid=(b,t)=>boxes(b.c,b.e).find(x=>x.t===t);
+  const top=boxes(0,u.length), moov=top.find(b=>b.t==='moov'); if(!moov) throw new Error('no moov');
+  const traks=boxes(moov.c,moov.e).filter(b=>b.t==='trak'); if(traks.length!==1) throw new Error('trak');
+  const trak=traks[0], mdia=kid(trak,'mdia'), minf=kid(mdia,'minf'), stbl=kid(minf,'stbl'), stsd=kid(stbl,'stsd');
+  const mvex=kid(moov,'mvex'), trex=mvex&&kid(mvex,'trex');
+  let dDur=trex?dv.getUint32(trex.c+16):0, dSize=trex?dv.getUint32(trex.c+20):0, dFlags=trex?dv.getUint32(trex.c+24):0;
+  const S=[];   // {off,size,dur,sync,cto}
+  for(const moof of top.filter(b=>b.t==='moof')){
+    for(const traf of boxes(moof.c,moof.e).filter(b=>b.t==='traf')){
+      const tfhd=kid(traf,'tfhd'); const tf=dv.getUint32(tfhd.c)&0xffffff; let p=tfhd.c+8;
+      let base=moof.s, fDur=dDur, fSize=dSize, fFlags=dFlags;
+      if(tf&1){ base=Number(dv.getBigUint64(p)); p+=8; } if(tf&2) p+=4;
+      if(tf&8){ fDur=dv.getUint32(p); p+=4; } if(tf&16){ fSize=dv.getUint32(p); p+=4; } if(tf&32){ fFlags=dv.getUint32(p); p+=4; }
+      let pos=base;
+      for(const trun of boxes(traf.c,traf.e).filter(b=>b.t==='trun')){
+        const vf=dv.getUint32(trun.c), ver=vf>>>24, fl=vf&0xffffff, n=dv.getUint32(trun.c+4); let q=trun.c+8;
+        if(fl&1){ pos=base+dv.getInt32(q); q+=4; } let first=null; if(fl&4){ first=dv.getUint32(q); q+=4; }
+        for(let i=0;i<n;i++){
+          let dur=fDur,size=fSize,flags=(i===0&&first!==null)?first:fFlags,cto=0;
+          if(fl&0x100){ dur=dv.getUint32(q); q+=4; } if(fl&0x200){ size=dv.getUint32(q); q+=4; }
+          if(fl&0x400){ flags=dv.getUint32(q); q+=4; } if(fl&0x800){ cto=ver?dv.getInt32(q):dv.getUint32(q); q+=4; }
+          if(pos+size>u.length) throw new Error('data');
+          S.push({off:pos,size,dur,sync:!(flags&0x10000),cto}); pos+=size;
+        }
+      }
+    }
+  }
+  if(!S.length) throw new Error('no samples');
+  // 最後のコマの長さが0なら、1つ前と同じにする
+  if(!S[S.length-1].dur) S[S.length-1].dur=S.length>1?S[S.length-2].dur:1;
+  const mts=dv.getUint32(kid(mdia,'mdhd').c+(u[kid(mdia,'mdhd').c]?20:12));
+  const mvhd=kid(moov,'mvhd'), vts=dv.getUint32(mvhd.c+(u[mvhd.c]?20:12));
+  const total=S.reduce((a,s)=>a+s.dur,0), mvDur=Math.round(total*vts/mts);
+  // 箱を組み立てる道具
+  const B=(t,...parts)=>{ const len=8+parts.reduce((a,x)=>a+x.length,0); const o=new Uint8Array(len); new DataView(o.buffer).setUint32(0,len); for(let i=0;i<4;i++) o[4+i]=t.charCodeAt(i); let k=8; for(const x of parts){ o.set(x,k); k+=x.length; } return o; };
+  const U32=a=>{ const o=new Uint8Array(a.length*4), d=new DataView(o.buffer); a.forEach((x,i)=>d.setUint32(i*4,x>>>0)); return o; };
+  const raw=b=>u.slice(b.s,b.e);
+  const patchDur=(b,off0,off1,val)=>{ const o=raw(b), d=new DataView(o.buffer), c=b.c-b.s; if(o[c]) d.setBigUint64(c+off1,BigInt(val)); else d.setUint32(c+off0,val); return o; };
+  const sizes=S.map(s=>s.size);
+  // コマの長さ（同じ長さが続くものはまとめる）
+  const stts=[]; for(const s of S){ const l=stts[stts.length-1]; if(l&&l[1]===s.dur) l[0]++; else stts.push([1,s.dur]); }
+  const ctts=[]; for(const s of S){ const l=ctts[ctts.length-1]; if(l&&l[1]===s.cto) l[0]++; else ctts.push([1,s.cto]); }
+  const syncs=[]; S.forEach((s,i)=>{ if(s.sync) syncs.push(i+1); });
+  const others=(b,skip)=>boxes(b.c,b.e).filter(x=>!skip.includes(x.t)).map(raw);
+  const build=mdatOff=>{
+    const st=[raw(stsd), B('stts',U32([0,stts.length,...stts.flat()]))];
+    if(ctts.some(x=>x[1])) st.push(B('ctts',U32([0,ctts.length,...ctts.flat()])));
+    if(syncs.length<S.length) st.push(B('stss',U32([0,syncs.length,...syncs])));
+    st.push(B('stsc',U32([0,1,1,S.length,1])), B('stsz',U32([0,0,S.length,...sizes])), B('stco',U32([0,1,mdatOff])));
+    const nStbl=B('stbl',...st);
+    const nMinf=B('minf',...others(minf,['stbl']),nStbl);
+    const nMdia=B('mdia',patchDur(kid(mdia,'mdhd'),16,24,total),...others(mdia,['mdhd','minf']),nMinf);
+    const nTrak=B('trak',patchDur(kid(trak,'tkhd'),20,28,mvDur),...others(trak,['tkhd','mdia','edts']),nMdia);
+    return B('moov',patchDur(mvhd,16,24,mvDur),...others(moov,['mvhd','trak','mvex']),nTrak);
+  };
+  const ftyp=B('ftyp',new Uint8Array([105,115,111,109,0,0,2,0,105,115,111,109,105,115,111,50,97,118,99,49,109,112,52,49]));   // isom / isom iso2 avc1 mp41
+  const dataLen=sizes.reduce((a,x)=>a+x,0);
+  const moovLen=build(0).length, mdatOff=ftyp.length+moovLen+8;
+  const out=new Uint8Array(ftyp.length+moovLen+8+dataLen);
+  out.set(ftyp,0); out.set(build(mdatOff),ftyp.length);
+  const mh=ftyp.length+moovLen; new DataView(out.buffer).setUint32(mh,8+dataLen); out.set([109,100,97,116],mh+4);
+  let k=mdatOff; for(const s of S){ out.set(u.subarray(s.off,s.off+s.size),k); k+=s.size; }
+  return out;
+}
+
 // ---- 結果入りの動画を作る（この端末の中で、再生しながら録画する）----
 let exporting=null;
 function pickMime(){
@@ -1010,7 +1080,10 @@ $('bExport').onclick=async()=>{
   const cancelled=exporting.stop; exporting=null;
   $('bExport').disabled=false; $('bExportStop').hidden=true; $('exProg').hidden=true;
   if(cancelled){ $('exMsg').textContent='中止しました。'; return; }
-  const blob=new Blob(chunks,{type:mime.split(';')[0]});
+  let blob=new Blob(chunks,{type:mime.split(';')[0]});
+  // スマホで録画したmp4は「長さ不明・細切れ」の形になり、LINEの再生画面で終わり近くにエラーが出ることがある。
+  // ふつうのmp4（長さ入り・目次が先頭）に並べ直す。うまくいかなければ元のまま使う。
+  if(ext==='mp4'){ try{ blob=new Blob([defragMp4(new Uint8Array(await blob.arrayBuffer()))],{type:'video/mp4'}); }catch(e){ console.warn('mp4の並べ直しに失敗',e); } }
   const m=readMeta(), name='結果入り動画_'+(m.subj||'ID未入力')+'_'+$('evDist').value+'m'+m.stroke+'_試技'+m.trial+'.'+ext;
   $('exMsg').textContent='できました（'+(blob.size/1048576).toFixed(1)+' MB、'+ext+'形式）。'+(ext==='webm'?'webm形式はiPhoneのLINEで再生できないことがあります。':'');
   lastExport={name,blob};
