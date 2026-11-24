@@ -198,7 +198,8 @@ section{min-width:0}
         <li><b>計算</b>：区間ごとに自動で計算します。
           <ul>
             <li>泳速度 ＝ 区間の距離 ÷ 通過にかかった時間</li>
-            <li>ストロークタイム ＝ 区間内の最初と最後のストロークの印の間の時間 ÷ ストローク数（例：印4つで3ストローク）</li>
+            <li>ストローク数 ＝ 区間内のストロークの印の数（かいた回数）。区間の境目ちょうどの印は、後ろの区間に数えます。1本（プールの長さ）ごとのストローク数は、ターン・フィニッシュ中にかいた分も含みます</li>
+            <li>ストロークタイム ＝ 区間内の最初と最後のストロークの印の間の時間 ÷（印の数 − 1）（例：印4つなら3で割る）。スタート・ターン・フィニッシュの局面でも、印が2つ以上あれば計算します</li>
             <li>テンポ ＝ 60 ÷ ストロークタイム（回/分）</li>
             <li>ストローク長 ＝ 泳速度 × ストロークタイム（1ストロークで進む距離）</li>
           </ul>
@@ -612,23 +613,27 @@ document.addEventListener('keydown',e=>{
 });
 
 // ---- 計算 ----
+// ストロークの印を数える：区間の始まりの時刻を含み、終わりの時刻は含まない（境目の印を二重に数えない）。lastIn=true なら終わりも含む
+function strokeStats(strokes,t1,t2,lastIn){
+  const s=strokes.filter(t=>t>=t1-1e-9 && (lastIn?t<=t2+1e-9:t<t2-1e-9)), n=s.length;
+  return {n, st:n>=2?(s[n-1]-s[0])/(n-1):NaN};
+}
 function compute(){
   const passes=marks.filter(m=>m.type==='pass').sort((a,b)=>a.t-b.t);
   const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b);
   const rows=[], notes=new Set();
   const seg=(a,b,label)=>{
     const dt=b.t-a.t, dd=b.dist-a.dist, vel=dt>0?dd/dt:NaN;
-    const s=strokes.filter(t=>t>=a.t-1e-9 && t<=b.t+1e-9), n=s.length;
-    const st=n>=2?(s[n-1]-s[0])/(n-1):NaN;
+    const {n,st}=strokeStats(strokes,a.t,b.t,label.startsWith('全体'));
     if(!(dd>0)) notes.add('距離が増えていない区間があります。通過の距離を確かめてください。');
     if(n<2) notes.add('ストロークの印が2つ未満の区間は、ストロークタイムを計算できません。');
-    else if(n<4) notes.add('ストローク数が3未満の区間は、値が不安定になりやすいです。');
-    return {label, d1:a.dist, d2:b.dist, t1:a.t, t2:b.t, dt, vel, n:Math.max(0,n-1), st, tempo:60/st, sl:vel*st};
+    else if(n<4) notes.add('ストロークの印が4つ未満の区間は、値が不安定になりやすいです。');
+    return {label, d1:a.dist, d2:b.dist, t1:a.t, t2:b.t, dt, vel, n, st, tempo:60/st, sl:vel*st};
   };
   const s0=startT();
-  if(s0!==null && passes.length && passes[0].t>s0){   // スタート（0 m）から最初の通過まで。ストロークは計算しない
-    const b=passes[0], dt=b.t-s0;
-    rows.push({label:'スタート–'+fmtD(b.dist)+' m', d1:0, d2:b.dist, t1:s0, t2:b.t, dt, vel:dt>0?b.dist/dt:NaN, n:NaN, st:NaN, tempo:NaN, sl:NaN, fromStart:true});
+  if(s0!==null && passes.length && passes[0].t>s0){   // スタート（0 m）から最初の通過まで
+    const b=passes[0], dt=b.t-s0, vel=dt>0?b.dist/dt:NaN, {n,st}=strokeStats(strokes,s0,b.t);
+    rows.push({label:'スタート–'+fmtD(b.dist)+' m', d1:0, d2:b.dist, t1:s0, t2:b.t, dt, vel, n, st, tempo:60/st, sl:vel*st, fromStart:true});
   }
   for(let i=0;i<passes.length-1;i++) rows.push(seg(passes[i],passes[i+1], fmtD(passes[i].dist)+'–'+fmtD(passes[i+1].dist)+' m'));
   if(passes.length>2) rows.push(Object.assign(seg(passes[0],passes[passes.length-1],'全体（'+fmtD(passes[0].dist)+'–'+fmtD(passes[passes.length-1].dist)+' m）'),{total:true}));
@@ -644,8 +649,8 @@ function computePhases(){
   const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b), rows=[];
   phases().forEach(p=>{
     const t1=timeAt(p.d1), t2=timeAt(p.d2); if(t1===null||t2===null||!(t2>t1)) return;
-    const dt=t2-t1, vel=(p.d2-p.d1)/dt; let n=NaN, st=NaN;
-    if(p.kind==='swim'){ const s=strokes.filter(t=>t>=t1-1e-9&&t<=t2+1e-9); if(s.length>=2){ n=s.length-1; st=(s[s.length-1]-s[0])/n; } }
+    const dt=t2-t1, vel=(p.d2-p.d1)/dt, ss=strokeStats(strokes,t1,t2,p.kind==='fin'), n=ss.n;
+    const st=p.kind==='turn'?NaN:ss.st;   // ターン合計は壁をはさむので、回数だけ出す   // どの局面でも、かいた回数とストロークの値を出す
     rows.push(Object.assign({}, p, {t1, t2, dt, vel, n, st, tempo:60/st, sl:vel*st}));
   });
   return rows;
@@ -655,14 +660,17 @@ function computePhases(){
 function fmtT(s){ if(!Number.isFinite(s)) return '—'; if(s>=60){ const m=Math.floor(s/60), r=s-m*60; return m+':'+r.toFixed(2).padStart(5,'0'); } return s.toFixed(2); }
 function summary(){
   const meta=readMeta(), s0=startT(), D=num('evDist',100), L=num('pool',25);
-  const laps=[]; let prev=s0;
-  wallDists().forEach(d=>{ const t=timeAt(d);
-    laps.push({d, split:(t!==null&&s0!==null)?t-s0:NaN, lap:(t!==null&&prev!==null)?t-prev:NaN}); prev=t; });
+  const laps=[]; let prev=s0; const walls=wallDists();
+  const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b);
+  walls.forEach((d,i)=>{ const t=timeAt(d);
+    const ok=t!==null&&prev!==null, ss=ok?strokeStats(strokes,prev,t,i===walls.length-1):{n:NaN};   // 1本（プールの長さ）ごとの、かいた回数（ターン・フィニッシュ中も含む）
+    laps.push({d, split:(t!==null&&s0!==null)?t-s0:NaN, lap:ok?t-prev:NaN, n:ss.n}); prev=t; });
   const last=laps[laps.length-1], pr=computePhases();
   const turns=[]; pr.filter(r=>r.turn).forEach(r=>{ let o=turns.find(x=>x.n===r.turn); if(!o){ o={n:r.turn}; turns.push(o); } o[r.kind]=r; });
   return { meta, D, L, pool:(L===25?'短水路':'長水路'), total:(last&&last.d===D)?last.split:NaN,
     laps:laps.filter(l=>Number.isFinite(l.split)), start:pr.find(r=>r.kind==='start'), fin:pr.find(r=>r.kind==='fin'),
-    turns, swims:pr.filter(r=>r.kind==='swim'), date:new Date().toLocaleDateString('ja-JP') };
+    turns, swims:pr.filter(r=>r.kind==='swim'), strokeRows:pr.filter(r=>r.kind!=='turn' && Number.isFinite(r.vel) && (r.kind==='swim'||r.n>0)),
+    strokeTotal:laps.length&&laps.every(l=>Number.isFinite(l.n))?laps.reduce((a,l)=>a+l.n,0):NaN, date:new Date().toLocaleDateString('ja-JP') };
 }
 function cardTitle(S){ return (S.meta.subj||'ID未入力')+'　'+S.D+'m '+S.meta.stroke; }
 function drawCard(){
@@ -674,9 +682,9 @@ function drawCard(){
   S.turns.forEach(t=>{ const tot=t.turn?t.turn.dt:NaN, det=[t.in?'イン '+fmtT(t.in.dt):'', t.out?'アウト '+fmtT(t.out.dt):''].filter(Boolean).join(' ／ ');
     if(t.turn||t.in||t.out) phaseLines.push(['ターン'+t.n, det, tot]); });
   if(S.fin) phaseLines.push(['フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）','',S.fin.dt]);
-  const swims=S.swims.filter(r=>Number.isFinite(r.vel));
+  const swims=S.strokeRows;
   let H=P+170+230;
-  if(S.laps.length) H+=90+44+S.laps.length*62;
+  if(S.laps.length) H+=90+44+S.laps.length*62+(Number.isFinite(S.strokeTotal)?50:0);
   if(phaseLines.length) H+=90+phaseLines.length*62;
   if(swims.length) H+=90+swims.length*150;
   H+=80; c.height=H;
@@ -698,15 +706,18 @@ function drawCard(){
   if(S.laps.length){
     head('ラップ');
     x.font='400 24px '+F; x.fillStyle=GRAY;
-    x.fillText('距離',P,y+20); x.fillText('通過',P+170,y+20); x.fillText('ラップ',P+370,y+20); y+=44;
-    const mx=Math.max(...S.laps.map(l=>Number.isFinite(l.lap)?l.lap:0))||1, bx=P+560, bw=W-P-bx;
+    x.fillText('距離',P,y+20); x.fillText('通過',P+170,y+20); x.fillText('ラップ',P+370,y+20); x.fillText('ストローク数',P+560,y+20); y+=44;
+    const mx=Math.max(...S.laps.map(l=>Number.isFinite(l.lap)?l.lap:0))||1, bx=P+740, bw=W-P-bx;
     S.laps.forEach(l=>{
       x.fillStyle=TXT; x.font='700 34px '+F; x.fillText(fmtD(l.d)+'m',P,y+38);
       x.font='700 38px '+F; x.fillText(fmtT(l.split),P+170,y+38);
       x.fillStyle=TEAL; x.font='700 38px '+F; x.fillText(fmtT(l.lap),P+370,y+38);
+      x.fillStyle=TXT; x.font='700 38px '+F; const ns=Number.isFinite(l.n)?String(l.n):'—'; x.fillText(ns,P+560,y+38);
+      if(ns!=='—'){ const w=x.measureText(ns).width; x.fillStyle=GRAY; x.font='400 24px '+F; x.fillText('回',P+566+w,y+38); }
       if(Number.isFinite(l.lap)){ x.fillStyle='#d6eef1'; x.fillRect(bx,y+10,bw,32); x.fillStyle=TEAL; x.fillRect(bx,y+10,Math.max(4,bw*l.lap/mx),32); }
       y+=62;
     });
+    if(Number.isFinite(S.strokeTotal)){ x.fillStyle=GRAY; x.font='700 28px '+F; x.fillText('ストローク数の合計（ターン・フィニッシュ中も含む）　'+S.strokeTotal+' 回',P,y+34); y+=50; }
   }
   // スタート・ターン・フィニッシュ
   if(phaseLines.length){
@@ -720,11 +731,11 @@ function drawCard(){
   }
   // 泳ぎの局面のストローク
   if(swims.length){
-    head('泳ぎ（ストローク）');
+    head('区間ごとのストローク');
     const tiles=[['泳速度','m/秒',r=>f2(r.vel)],['ストローク数','回',r=>Number.isFinite(r.n)?String(r.n):'—'],['ストロークタイム','秒',r=>f2(r.st)],['テンポ','回/分',r=>f1(r.tempo)],['ストローク長','m',r=>f2(r.sl)]];
     const tw=(W-2*P)/tiles.length;
     swims.forEach(r=>{
-      x.fillStyle=GRAY; x.font='700 26px '+F; x.fillText(r.name.replace('泳ぎ','')+'　'+fmtD(r.d1)+'–'+fmtD(r.d2)+'m',P,y+26);
+      x.fillStyle=GRAY; x.font='700 26px '+F; x.fillText(r.name+'　'+fmtD(r.d1)+'–'+fmtD(r.d2)+'m',P,y+26);
       tiles.forEach(([lab,unit,fn],i)=>{ const tx=P+i*tw;
         x.fillStyle='#f2f6f9'; x.fillRect(tx+4,y+40,tw-8,96);
         x.fillStyle=GRAY; x.font='400 21px '+F; x.fillText(lab,tx+16,y+68);
@@ -742,12 +753,14 @@ function summaryText(){
   L.push('【計測結果】'+cardTitle(S)+'（'+S.pool+'）');
   L.push(S.date+'　試技'+S.meta.trial);
   L.push('■タイム '+(Number.isFinite(S.total)?fmtT(S.total)+'秒':'—'));
-  if(S.laps.length){ L.push('■ラップ（通過／ラップ）'); S.laps.forEach(l=>L.push('　'+fmtD(l.d)+'m　'+fmtT(l.split)+'／'+fmtT(l.lap))); }
+  if(S.laps.length){ L.push('■ラップ（通過／ラップ／ストローク数）'); S.laps.forEach(l=>L.push('　'+fmtD(l.d)+'m　'+fmtT(l.split)+'／'+fmtT(l.lap)+'／'+(Number.isFinite(l.n)?l.n+'回':'—')));
+    if(Number.isFinite(S.strokeTotal)) L.push('　ストローク数の合計 '+S.strokeTotal+'回（ターン・フィニッシュ中も含む）'); }
   if(S.start) L.push('■スタート（0–'+fmtD(S.start.d2)+'m）'+fmtT(S.start.dt)+'秒');
   S.turns.forEach(t=>{ const d=[t.in?'イン'+fmtT(t.in.dt):'', t.out?'アウト'+fmtT(t.out.dt):''].filter(Boolean).join('／');
     if(t.turn||t.in||t.out) L.push('■ターン'+t.n+' '+(t.turn?fmtT(t.turn.dt)+'秒':'')+(d?'（'+d+'）':'')); });
   if(S.fin) L.push('■フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）'+fmtT(S.fin.dt)+'秒');
-  S.swims.filter(r=>Number.isFinite(r.vel)).forEach(r=>{
+  if(S.strokeRows.length) L.push('―― 区間ごとのストローク ――');
+  S.strokeRows.forEach(r=>{
     L.push('■'+r.name+' '+fmtD(r.d1)+'–'+fmtD(r.d2)+'m');
     L.push('　泳速度 '+f2(r.vel)+'m/秒'+(Number.isFinite(r.n)?'　ストローク数 '+r.n+'回':''));
     if(Number.isFinite(r.st)) L.push('　ストロークタイム '+f2(r.st)+'秒　テンポ '+f1(r.tempo)+'回/分　ストローク長 '+f2(r.sl)+'m');
@@ -810,14 +823,15 @@ function buildOverlay(){
     if(s0===null||p.t<s0) return;
     const isWall=walls.some(w=>Math.abs(w-p.dist)<1e-6), lap=S.laps.find(l=>Math.abs(l.d-p.dist)<1e-6);
     ev.push({t:p.t, kind:isWall?'wall':'pass', title:fmtD(p.dist)+'m 通過　'+fmtT(p.t-s0),
-      body:(isWall&&lap&&Number.isFinite(lap.lap))?'ラップ '+fmtT(lap.lap):''});
+      body:(isWall&&lap&&Number.isFinite(lap.lap))?'ラップ '+fmtT(lap.lap)+(Number.isFinite(lap.n)?'　ストローク '+lap.n+'回':''):''});
   });
   pr.forEach(r=>{
     if(r.kind==='out') return;   // アウトは、ターン合計の通知に入れる
     let body;
-    if(r.kind==='swim') body='泳速度 '+f2(r.vel)+' m/秒'+(Number.isFinite(r.st)?'　ストロークタイム '+f2(r.st)+' 秒　ストローク長 '+f2(r.sl)+' m':'');
+    const sk=(r.n>0?'　ストローク '+r.n+'回':'')+(Number.isFinite(r.st)?'　ストロークタイム '+f2(r.st)+' 秒　ストローク長 '+f2(r.sl)+' m':'');
+    if(r.kind==='swim') body='泳速度 '+f2(r.vel)+' m/秒'+sk;
     else if(r.kind==='turn'){ const t=S.turns.find(o=>o.n===r.turn); body=fmtT(r.dt)+' 秒'+(t&&t.in&&t.out?'（イン '+fmtT(t.in.dt)+' ／ アウト '+fmtT(t.out.dt)+'）':''); }
-    else body=fmtT(r.dt)+' 秒';
+    else body=fmtT(r.dt)+' 秒'+sk;
     ev.push({t:r.t2, kind:r.kind, title:r.name, body});
   });
   ev.sort((a,b)=>a.t-b.t);
@@ -835,16 +849,17 @@ function drawSummary(x,w,h,alpha){
   const L=[], R=[];
   L.push({k:'title', a:cardTitle(S), b:S.pool+'（'+S.L+'m）・試技'+S.meta.trial+'・'+S.date});
   L.push({k:'big', label:'タイム', val:Number.isFinite(S.total)?fmtT(S.total):'—'});
-  if(S.laps.length){ L.push({k:'head', t:'ラップ'}); L.push({k:'th', cells:['距離','通過タイム','ラップ'], xs:[0,.3,.65]});
-    S.laps.forEach(l=>L.push({k:'row', cells:[fmtD(l.d)+'m',fmtT(l.split),fmtT(l.lap)], xs:[0,.3,.65], hi:2})); }
+  if(S.laps.length){ L.push({k:'head', t:'ラップ'}); L.push({k:'th', cells:['距離','通過タイム','ラップ','ストローク数'], xs:[0,.24,.5,.74]});
+    S.laps.forEach(l=>L.push({k:'row', cells:[fmtD(l.d)+'m',fmtT(l.split),fmtT(l.lap),Number.isFinite(l.n)?l.n+'回':'—'], xs:[0,.24,.5,.74], hi:2}));
+    if(Number.isFinite(S.strokeTotal)) L.push({k:'row', cells:['ストローク数の合計（ターン・フィニッシュ中も含む）',S.strokeTotal+'回'], xs:[0,1], hi:1, small0:1}); }
   const P=[];
   if(S.start) P.push(['スタート（0–'+fmtD(S.start.d2)+'m）','',fmtT(S.start.dt)+' 秒']);
   S.turns.forEach(o=>{ if(o.turn||o.in||o.out) P.push(['ターン'+o.n, [o.in?'イン '+fmtT(o.in.dt):'',o.out?'アウト '+fmtT(o.out.dt):''].filter(Boolean).join('／'), o.turn?fmtT(o.turn.dt)+' 秒':'—']); });
   if(S.fin) P.push(['フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）','',fmtT(S.fin.dt)+' 秒']);
   if(P.length){ R.push({k:'head', t:'スタート・ターン・フィニッシュ'}); P.forEach(p=>R.push({k:'row', cells:p, xs:[0,.42,1], hi:2, sub:1})); }
-  const sw=S.swims.filter(r=>Number.isFinite(r.vel));
+  const sw=S.strokeRows;
   if(sw.length){ const xs=[0,.25,.41,.58,.74,.9];
-    R.push({k:'head', t:'泳ぎ（ストローク）'});
+    R.push({k:'head', t:'区間ごとのストローク'});
     R.push({k:'th2', cells:[['区間',''],['泳速度','m/秒'],['ストローク','タイム 秒'],['テンポ','回/分'],['ストローク長','m'],['ストローク','数']], xs});
     sw.forEach(r=>R.push({k:'row', cells:[r.name.replace('泳ぎ','').replace(/[（）]/g,'')+' '+fmtD(r.d1)+'–'+fmtD(r.d2)+'m', f2(r.vel), f2(r.st), f1(r.tempo), f2(r.sl), Number.isFinite(r.n)?String(r.n):'—'], xs, small0:1}));
   }
@@ -912,7 +927,7 @@ function drawOverlayParts(x,w,h,t){
     x.fillStyle='#9fd8e0'; x.font='700 '+(26*u)+'px '+F; x.fillText(cur.name+'　'+fmtD(cur.d1)+'–'+fmtD(cur.d2)+'m',pad+20*u,by+38*u);
     if(swim){
       const n=OV.strokes.filter(s=>s>=cur.t1-1e-9 && s<=t+1e-9).length;
-      let items=[['泳速度',f2(cur.vel),'m/秒'],['ストロークタイム',f2(cur.st),'秒'],['ストローク長',f2(cur.sl),'m'],['テンポ',f1(cur.tempo),'回/分'],['ストローク数',String(Math.max(0,n-1)),'回']];
+      let items=[['泳速度',f2(cur.vel),'m/秒'],['ストロークタイム',f2(cur.st),'秒'],['ストローク長',f2(cur.sl),'m'],['テンポ',f1(cur.tempo),'回/分'],['ストローク数',String(n),'回']];
       if(w<h*1.2) items=items.slice(0,3);   // 縦長の映像では3つに絞る
       const tw=(bw-40*u)/items.length, vs=Math.min(46*u,tw/4.4);
       items.forEach(([lab,val,unit],i)=>{ const tx=pad+20*u+i*tw;
@@ -921,7 +936,9 @@ function drawOverlayParts(x,w,h,t){
         if(val!=='—'){ const vw=x.measureText(val).width; x.fillStyle='#c8d2da'; x.font='400 '+(vs*0.45)+'px '+F; x.fillText(unit,tx+vw+6*u,by+128*u); }
       });
     } else {
-      x.fillStyle='#ffffff'; x.font='800 '+(42*u)+'px '+F; x.fillText(fmtT(t-cur.t1)+' 秒',pad+20*u,by+86*u);
+      x.fillStyle='#ffffff'; x.font='800 '+(42*u)+'px '+F; const tt=fmtT(t-cur.t1)+' 秒'; x.fillText(tt,pad+20*u,by+86*u);
+      const n=OV.strokes.filter(s=>s>=cur.t1-1e-9 && s<=t+1e-9).length;   // スタート・ターン・フィニッシュ中にかいた回数
+      if(n>0){ const tw=x.measureText(tt).width; x.fillStyle='#c8d2da'; x.font='700 '+(30*u)+'px '+F; x.fillText('ストローク '+n+' 回',pad+50*u+tw,by+86*u); }
     }
   }
   // 右上：通知（通過・区間の結果）
@@ -1146,6 +1163,12 @@ $('bCsv').onclick=()=>{
   const meta=readMeta(), {rows}=compute(), L=[];
   const s0=startT(), bl=x=>Number.isFinite(x)?x:'';
   L.push(['対象ID',meta.subj],['泳法',meta.stroke],['試技',meta.trial],['メモ',meta.memo],['種目の距離(m)',$('evDist').value],['プール',$('pool').value==='25'?'短水路（25 m）':'長水路（50 m）'],['局面の長さ(m)','スタート '+$('phStart').value+'／ターンイン '+$('phIn').value+'／ターンアウト '+$('phOut').value+'／フィニッシュ '+$('phFin').value],['1秒あたりのコマ数',fps()],['スタートの映像時刻(秒)',s0===null?'未設定':s0.toFixed(4)],['作成日',new Date().toLocaleString('ja-JP')],[]);
+  const SL=summary();
+  L.push(['1本（プールの長さ）ごと（ストローク数はターン・フィニッシュ中も含む）']);
+  L.push(['壁までの距離(m)','通過タイム(秒)','ラップ(秒)','ストローク数']);
+  SL.laps.forEach(l=>L.push([l.d,f3(l.split).replace('—',''),f3(l.lap).replace('—',''),bl(l.n)]));
+  if(Number.isFinite(SL.strokeTotal)) L.push(['合計','','',SL.strokeTotal]);
+  L.push([]);
   L.push(['局面別の結果（時刻はスタートからの秒）']);
   L.push(['局面','開始距離(m)','終了距離(m)','開始時刻(秒)','終了時刻(秒)','時間(秒)','泳速度(m/秒)','ストローク数','ストロークタイム(秒)','テンポ(回/分)','ストローク長(m)']);
   computePhases().forEach(r=>L.push([r.name,r.d1,r.d2,f3(rel(r.t1)).replace('—',''),f3(rel(r.t2)).replace('—',''),f3(r.dt),f3(r.vel),bl(r.n),f3(r.st).replace('—',''),f2(r.tempo).replace('—',''),f3(r.sl).replace('—','')]));
