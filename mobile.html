@@ -21,6 +21,14 @@ video{display:block;width:100%;max-height:34vh;background:#000}
 #ph{color:#cfd6dc;padding:34px 16px;text-align:center;font-size:14px}
 #clock{position:absolute;left:8px;top:6px;background:rgba(0,0,0,.6);color:#fff;font-size:13px;padding:1px 8px;border-radius:6px;pointer-events:none}
 #nextTag{position:absolute;right:8px;top:6px;background:rgba(11,122,90,.92);color:#fff;font-weight:800;font-size:19px;padding:2px 14px;border-radius:8px;pointer-events:none;white-space:nowrap}
+.seekwrap{background:var(--panel);border-bottom:1px solid var(--line);padding:6px 14px 4px}
+#ticks{position:relative;height:22px}
+#ticks i{position:absolute;bottom:0;width:3px;margin-left:-1.5px;border-radius:1px}
+#ticks i.start{background:var(--accent);height:22px;width:4px}
+#ticks i.pass{background:var(--pass);height:22px}
+#ticks i.stroke{background:var(--stroke);height:12px}
+#ticks i.sel{outline:2px solid var(--text)}
+.legend{font-size:12px;display:flex;gap:12px;justify-content:center}
 .pane{padding:12px 14px 40px}
 .pane[hidden]{display:none}
 h2{font-size:16px;margin:16px 0 8px}
@@ -74,15 +82,20 @@ pre{white-space:pre-wrap;font-size:13px;background:var(--btn);padding:8px;border
 <div class="tabs"><button id="t1" class="on">① 準備</button><button id="t2">② 記録</button><button id="t3">③ 結果</button></div>
 <div class="vwrap" id="vwrap">
   <div id="ph">映像を選ぶと、ここに出ます。</div>
-  <video id="video" playsinline webkit-playsinline muted preload="auto" hidden></video>
+  <video id="video" playsinline webkit-playsinline preload="auto" hidden></video>
   <div id="clock" hidden></div><div id="nextTag" hidden></div>
+</div>
+<div class="seekwrap">
+  <div id="ticks"></div>
+  <input type="range" id="seek" min="0" max="1" step="any" value="0" disabled>
+  <div class="legend"><span style="color:var(--accent)">▌スタート</span> <span style="color:var(--pass)">▌通過</span> <span style="color:var(--stroke)">▌ストローク</span></div>
 </div>
 
 <!-- ① 準備 -->
 <div class="pane" id="p1">
   <h2>種目</h2>
   <div class="grid2">
-    <div><label for="evDist">距離</label><select id="evDist"><option>50</option><option selected>100</option><option>200</option><option>400</option><option>800</option><option>1500</option></select></div>
+    <div><label for="evDist">距離</label><select id="evDist"><option>25</option><option>50</option><option>75</option><option selected>100</option><option>150</option><option>200</option><option>300</option><option>400</option><option>800</option><option>1500</option></select></div>
     <div><label for="pool">プール</label><select id="pool"><option value="25" selected>短水路（25m）</option><option value="50">長水路（50m）</option></select></div>
     <div><label for="stroke">泳法</label><select id="stroke"><option>自由形</option><option>背泳ぎ</option><option>平泳ぎ</option><option>バタフライ</option><option>個人メドレー</option></select></div>
     <div><label for="trial">試技の番号</label><input id="trial" type="number" min="1" value="1" inputmode="numeric"></div>
@@ -117,7 +130,6 @@ pre{white-space:pre-wrap;font-size:13px;background:var(--btn);padding:8px;border
   <div class="ctl" id="rates">
     <button data-rate="0.25">0.25倍</button><button data-rate="0.5" class="on">0.5倍</button><button data-rate="1">1倍</button><button id="bSound">音 切</button>
   </div>
-  <input type="range" id="seek" min="0" max="1" step="any" value="0" disabled>
   <div class="msg" id="counts"></div>
   <button class="go" id="goRes" style="margin-top:6px">③ 結果を見る</button>
   <details><summary>押すくせの補正</summary>
@@ -194,7 +206,10 @@ if(setupOpenOut(navigator.userAgent)) autoOpenOut(navigator.userAgent);
 const v=$('video');
 const hasRVFC='requestVideoFrameCallback' in HTMLVideoElement.prototype;
 let curT=0, marks=[], nextId=1, fileKey=null, objUrl=null, fpsVal=60, pendingT=null, fpsSamples=[], lastMeta=null, needProbe=false, probing=false;
-let rvSel=null, audioCtx=null, rhyRaf=0, exporting=null, lastExport=null, soundOn=false, tab=1, OV=null;
+let rvSel=null, audioCtx=null, rhyRaf=0, exporting=null, lastExport=null, soundOn=true, tab=1, OV=null;
+try{ if(localStorage.getItem('swim-mobile:sound')==='off') soundOn=false; }catch(e){}
+const RATE0=0.5;   // 再生の速さは、いつも0.5倍から始める
+v.defaultPlaybackRate=RATE0;
 const PH={s:15,ti:5,to:15,f:5};   // スタート15m・ターンイン5m・ターンアウト15m・フィニッシュ5m
 const fps=()=>fpsVal>0?fpsVal:60;
 const f2=x=>Number.isFinite(x)?x.toFixed(2):'—';
@@ -545,7 +560,13 @@ $('file').addEventListener('change',e=>{
   $('loadMsg').textContent=n?('前回この映像につけた印を読み込みました（'+n+'件）。'):'映像を読み込みました。';
   $('goRec').disabled=false; applySound(); renderAll();
 });
-v.addEventListener('loadedmetadata',()=>{ const s=$('seek'); s.max=v.duration||0; s.disabled=!(v.duration>0); s.value=0; });
+v.addEventListener('loadedmetadata',()=>{ const s=$('seek'); s.max=v.duration||0; s.disabled=!(v.duration>0); s.value=0; v.playbackRate=RATE0; markRate(); renderTicks(); });
+// スライドバーの上に、印の位置を色つきの線で示す（スタート＝青・通過＝緑・ストローク＝オレンジ）
+function renderTicks(){
+  const box=$('ticks'), d=v.duration||0; box.innerHTML='';
+  if(!(d>0)) return;
+  marks.forEach(m=>{ const i=document.createElement('i'); i.className=m.type+(m.id===rvSel?' sel':''); i.style.left='calc(10px + (100% - 20px) * '+(m.t/d)+')'; box.appendChild(i); });
+}
 v.addEventListener('loadeddata',()=>{ curT=v.currentTime; updateClock(); if(needProbe){ needProbe=false; probeFps(); } });
 // 読み込んだ直後に約1秒だけ再生して、映像のコマ数を調べる
 async function probeFps(){
@@ -554,7 +575,7 @@ async function probeFps(){
   v.playbackRate=1; v.muted=true;
   try{ await v.play(); }catch(e){ applySound(); probing=false; $('goRec').disabled=false; $('fpsEst').textContent='コマ数は、初めの設定（60）のままです。'; return; }
   setTimeout(()=>{
-    v.pause(); applySound(); v.playbackRate=0.5; pendingT=null; v.currentTime=0; probing=false; $('goRec').disabled=false;
+    v.pause(); applySound(); v.playbackRate=RATE0; pendingT=null; v.currentTime=0; probing=false; $('goRec').disabled=false;
     if(fpsSamples.length>=15){
       const s=[...fpsSamples].sort((a,b)=>a-b), med=s[Math.floor(s.length/2)], est=1/med, r=Math.round(est);
       fpsVal=Math.abs(r-est)<0.15?r:Math.round(est*100)/100; $('fps').value=fpsVal;
@@ -599,8 +620,8 @@ $('bBack').onclick=()=>step(-1); $('bFwd').onclick=()=>step(1);
 function markRate(){ document.querySelectorAll('#rates [data-rate]').forEach(b=>b.classList.toggle('on',Math.abs(parseFloat(b.dataset.rate)-(v.playbackRate||1))<1e-6)); }
 document.querySelectorAll('#rates [data-rate]').forEach(b=>b.onclick=()=>{ v.playbackRate=parseFloat(b.dataset.rate); markRate(); });
 v.addEventListener('ratechange',markRate);
-function applySound(){ v.muted=!soundOn; v.volume=0.4; $('bSound').textContent=soundOn?'音 入':'音 切'; }
-$('bSound').onclick=()=>{ soundOn=!soundOn; applySound(); };
+function applySound(){ v.muted=!soundOn; v.volume=0.5; $('bSound').textContent=soundOn?'音 入':'音 切'; }
+$('bSound').onclick=()=>{ soundOn=!soundOn; applySound(); try{ localStorage.setItem('swim-mobile:sound',soundOn?'on':'off'); }catch(e){} };
 applySound();
 
 // ---- 押すくせの補正 ----
@@ -694,7 +715,7 @@ function renderAll(){
   $('bPass').textContent=n>=cps.length?'通過（済）':'通過 '+fmtD(cps[n])+'m';
   const k=t=>marks.filter(m=>m.type===t).length;
   $('counts').textContent='記録：スタート '+k('start')+'・通過 '+k('pass')+'／'+cps.length+'・ストローク '+k('stroke');
-  updateClock(); if(tab===3) renderResult();
+  renderTicks(); updateClock(); if(tab===3) renderResult();
 }
 function renderResult(){
   const S=summary(), s0=startT(); let h='';
@@ -726,6 +747,7 @@ const TN={start:'スタート',pass:'通過',stroke:'ストローク'};
 function rvList(){ return marks.slice().sort((a,b)=>a.t-b.t); }
 function rvShow(){
   const L=rvList(), i=L.findIndex(m=>m.id===rvSel), m=L[i];
+  renderTicks();
   if(!m){ $('rvInfo').textContent=L.length?'「前の印」「次の印」で、印の場所へ飛びます（全'+L.length+'個）。':'印がありません。'; return; }
   const s=startT(), pass=passList().find(p=>p.id===m.id);
   $('rvInfo').textContent=(i+1)+'／'+L.length+'　'+TN[m.type]+(pass&&Number.isFinite(pass.dist)?' '+fmtD(pass.dist)+'m':'')+'　'+(s!==null?'スタートから '+(m.t-s).toFixed(3)+' 秒':'映像 '+m.t.toFixed(3)+' 秒');
@@ -806,7 +828,7 @@ $('bExport').onclick=async()=>{
   catch(e){ $('exMsg').textContent='この画面（ブラウザ）では動画を作れません。'; return; }
   const chunks=[]; rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
   const stopped=new Promise(r=>{ rec.onstop=r; });
-  const oldRate=v.playbackRate||0.5;
+  const oldRate=RATE0;
   exporting={stop:false};
   $('bExport').disabled=true; $('bExportStop').hidden=false; $('exProg').hidden=false; $('exProg').value=0; $('exDone').hidden=true;
   $('exMsg').textContent='動画を作っています…（'+(b-a).toFixed(0)+'秒ほど。この画面を開いたままにしてください）';
