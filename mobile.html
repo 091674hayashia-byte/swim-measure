@@ -44,10 +44,10 @@ button:disabled{opacity:.4}
 .msg{font-size:14px;color:var(--sub);margin:8px 0;min-height:1.5em}
 .msg.warn{color:var(--warn)}
 .pads{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}
-.pad{height:76px;font-size:22px;font-weight:800;border-width:2px;color:#fff}
-.pad.st{background:var(--accent);border-color:var(--accent)}
-.pad.pa{background:var(--pass);border-color:var(--pass)}
-.pad.sk{grid-column:1/3;height:112px;font-size:28px;background:var(--stroke);border-color:var(--stroke)}
+.pad{font-weight:800;border-width:2px;color:#fff}
+.pad.st{grid-column:1/3;height:48px;font-size:18px;background:var(--accent);border-color:var(--accent)}
+.pad.pa{height:min(30vh,190px);font-size:24px;background:var(--pass);border-color:var(--pass)}
+.pad.sk{height:min(30vh,190px);font-size:24px;background:var(--stroke);border-color:var(--stroke)}
 .pad.hit{filter:brightness(1.5);transform:scale(.98)}
 .lane{height:10px;background:var(--btn);border-radius:6px;overflow:hidden;margin:6px 0}
 .lane i{display:block;height:100%;width:0;background:var(--accent)}
