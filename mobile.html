@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>泳ぎの映像計測（スマホ版）</title>
+<style>
+:root{--bg:#f2f4f7;--panel:#fff;--text:#1d2329;--sub:#5b6670;--line:#d9dee3;--accent:#1f6feb;--pass:#0b7a5a;--stroke:#d9662a;--btn:#eef1f4;--warn:#8a5a00}
+@media (prefers-color-scheme:dark){:root{--bg:#15181c;--panel:#1e2227;--text:#e6e9ec;--sub:#9aa5af;--line:#343a41;--accent:#5b9cff;--pass:#3cc597;--stroke:#f08a4b;--btn:#2a2f35;--warn:#e3b341}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;font-size:16px;line-height:1.55;padding-bottom:env(safe-area-inset-bottom)}
+header{padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{margin:0;font-size:17px}
+#openOut{margin:8px 12px;padding:10px;background:#fff4d6;color:#5a3e00;border-radius:8px;font-size:14px}
+#openOut a{display:inline-block;margin-top:4px;padding:8px 14px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-weight:700}
+.tabs{display:flex;gap:0;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.tabs button{flex:1;border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:11px 4px;font-weight:700;color:var(--sub)}
+.tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.vwrap{background:#000;position:relative}
+video{display:block;width:100%;max-height:34vh;background:#000}
+#ph{color:#cfd6dc;padding:34px 16px;text-align:center;font-size:14px}
+#clock{position:absolute;left:8px;top:6px;background:rgba(0,0,0,.6);color:#fff;font-size:13px;padding:1px 8px;border-radius:6px;pointer-events:none}
+#nextTag{position:absolute;right:8px;top:6px;background:rgba(11,122,90,.92);color:#fff;font-weight:800;font-size:19px;padding:2px 14px;border-radius:8px;pointer-events:none;white-space:nowrap}
+.pane{padding:12px 14px 40px}
+.pane[hidden]{display:none}
+h2{font-size:16px;margin:16px 0 8px}
+h2:first-child{margin-top:0}
+label{display:block;font-size:14px;color:var(--sub);margin:10px 0 3px}
+input,select{width:100%;font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;color:var(--text);background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:10px 12px;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+button:disabled{opacity:.4}
+.go{width:100%;background:var(--accent);color:#fff;border:0;font-weight:800;font-size:18px;padding:15px;margin-top:14px}
+.filebtn{display:block;text-align:center;background:var(--accent);color:#fff;font-weight:800;font-size:18px;padding:15px;border-radius:10px;margin-top:10px}
+.filebtn input{display:none}
+.msg{font-size:14px;color:var(--sub);margin:8px 0;min-height:1.5em}
+.msg.warn{color:var(--warn)}
+.pads{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}
+.pad{height:76px;font-size:22px;font-weight:800;border-width:2px;color:#fff}
+.pad.st{background:var(--accent);border-color:var(--accent)}
+.pad.pa{background:var(--pass);border-color:var(--pass)}
+.pad.sk{grid-column:1/3;height:112px;font-size:28px;background:var(--stroke);border-color:var(--stroke)}
+.pad.hit{filter:brightness(1.5);transform:scale(.98)}
+.lane{height:10px;background:var(--btn);border-radius:6px;overflow:hidden;margin:6px 0}
+.lane i{display:block;height:100%;width:0;background:var(--accent)}
+.lane i.near{background:var(--stroke)}
+.ctl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+.ctl button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+input[type=range]{padding:0;border:0;background:none;width:100%;margin:4px 0}
+details{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+summary{font-weight:700;padding:4px 0}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:4px 0 8px}
+th,td{padding:5px 4px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--sub);font-weight:400;font-size:12px}
+.big{font-size:44px;font-weight:800;line-height:1.1;margin:4px 0}
+.big small{font-size:18px;color:var(--sub)}
+.rv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+progress{width:100%;height:14px}
+#exVideo{width:100%;max-height:40vh;background:#000;margin-top:8px;border-radius:8px}
+#calBox{position:fixed;inset:0;background:rgba(10,20,30,.94);z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;color:#fff;padding:20px;text-align:center}
+#calBox[hidden]{display:none}
+#calDot{width:90px;height:90px;border-radius:50%;background:#334;transition:background .05s}
+#calDot.on{background:#ffd23f}
+#calTap{width:100%;max-width:340px;height:130px;font-size:26px;font-weight:800;background:var(--accent);color:#fff;border:0}
+pre{white-space:pre-wrap;font-size:13px;background:var(--btn);padding:8px;border-radius:8px}
+</style>
+</head>
+<body>
+<header><h1>泳ぎの映像計測（スマホ版）</h1></header>
+<div id="openOut" hidden><div>LINEの中では、動画の保存や送信がうまく動きません。いつものブラウザで開いてください。</div><a id="openOutBtn" href="#">ブラウザで開く</a><div id="openOutNote" style="font-size:13px;margin-top:4px"></div></div>
+
+<div class="tabs"><button id="t1" class="on">① 準備</button><button id="t2">② 記録</button><button id="t3">③ 結果</button></div>
+<div class="vwrap" id="vwrap">
+  <div id="ph">映像を選ぶと、ここに出ます。</div>
+  <video id="video" playsinline webkit-playsinline muted preload="auto" hidden></video>
+  <div id="clock" hidden></div><div id="nextTag" hidden></div>
+</div>
+
+<!-- ① 準備 -->
+<div class="pane" id="p1">
+  <h2>種目</h2>
+  <div class="grid2">
+    <div><label for="evDist">距離</label><select id="evDist"><option>50</option><option selected>100</option><option>200</option><option>400</option><option>800</option><option>1500</option></select></div>
+    <div><label for="pool">プール</label><select id="pool"><option value="25" selected>短水路（25m）</option><option value="50">長水路（50m）</option></select></div>
+    <div><label for="stroke">泳法</label><select id="stroke"><option>自由形</option><option>背泳ぎ</option><option>平泳ぎ</option><option>バタフライ</option><option>個人メドレー</option></select></div>
+    <div><label for="trial">試技の番号</label><input id="trial" type="number" min="1" value="1" inputmode="numeric"></div>
+  </div>
+  <label for="subj">選手ID（氏名ではなく番号などを入れる）</label>
+  <input id="subj" type="text" placeholder="例：A01" autocomplete="off">
+  <label class="filebtn" for="file">映像を選ぶ<input id="file" type="file" accept="video/*"></label>
+  <div class="msg" id="loadMsg">映像は、この端末の中だけで使います。外へは送りません。</div>
+  <button class="go" id="goRec" disabled>② 記録へ進む</button>
+  <details><summary>くわしい設定</summary>
+    <label for="fps">1秒あたりのコマ数（自動で調べます。違うときだけ直す）</label>
+    <input id="fps" type="number" min="1" max="480" step="any" value="60" inputmode="decimal">
+    <div class="msg" id="fpsEst"></div>
+  </details>
+</div>
+
+<!-- ② 記録 -->
+<div class="pane" id="p2" hidden>
+  <div class="msg" id="rInfo">「▶ 再生」を押して、泳ぎに合わせて大きなボタンを押します。</div>
+  <div class="lane"><i id="laneFill"></i></div>
+  <div class="pads">
+    <button class="pad st" id="bStart">スタート</button>
+    <button class="pad pa" id="bPass">通過</button>
+    <button class="pad sk" id="bStroke">ストローク</button>
+  </div>
+  <div class="ctl">
+    <button id="bPlay">▶ 再生</button>
+    <button id="bBack">◀ 1コマ</button>
+    <button id="bFwd">1コマ ▶</button>
+    <button id="bUndo">取り消し</button>
+  </div>
+  <div class="ctl" id="rates">
+    <button data-rate="0.25">0.25倍</button><button data-rate="0.5" class="on">0.5倍</button><button data-rate="1">1倍</button><button id="bSound">音 切</button>
+  </div>
+  <input type="range" id="seek" min="0" max="1" step="any" value="0" disabled>
+  <div class="msg" id="counts"></div>
+  <button class="go" id="goRes" style="margin-top:6px">③ 結果を見る</button>
+  <details><summary>押すくせの補正</summary>
+    <div class="msg">指で押すと、映像より少し遅れる（または早める）くせがあります。光る丸に合わせて14回押すと、そのずれを測って自動で差し引きます。</div>
+    <button id="bCal" style="width:100%">くせを測る</button>
+    <label for="tapOff">いまの補正（ミリ秒）</label>
+    <input id="tapOff" type="number" value="0" inputmode="numeric">
+    <div class="msg" id="calInfo"></div>
+  </details>
+</div>
+
+<!-- ③ 結果 -->
+<div class="pane" id="p3" hidden>
+  <div id="resBox"></div>
+  <h2>印を見直す（1コマずつ直せます）</h2>
+  <div class="msg" id="rvInfo">下の「前の印」「次の印」で、印の場所へ飛びます。</div>
+  <div class="rv"><button id="rvPrev">◀ 前の印</button><button id="rvNext">次の印 ▶</button><button id="rvDel">この印を消す</button></div>
+  <div class="rv"><button id="rvM">この印 −1コマ</button><button id="rvP">この印 ＋1コマ</button><button id="rvPlay">▶ 再生/停止</button></div>
+  <div class="row2"><button id="allM">全部の印 −1コマ</button><button id="allP">全部の印 ＋1コマ</button></div>
+  <h2>結果入りの動画を作る</h2>
+  <div class="msg">映像に、タイム・ラップ・泳速度などを重ねた動画を、この端末の中で作ります（印のあたりだけ・LINE向けの大きさ）。</div>
+  <button class="go" id="bExport" style="margin-top:4px">動画を作る</button>
+  <button id="bExportStop" hidden style="width:100%;margin-top:8px">中止する</button>
+  <progress id="exProg" hidden max="1" value="0"></progress>
+  <div class="msg" id="exMsg"></div>
+  <div id="exDone" hidden>
+    <video id="exVideo" controls playsinline></video>
+    <div class="row2"><button id="bExShare" class="go" style="margin:8px 0 0">LINEなどで送る</button><button id="bExSave" style="margin-top:8px">端末に保存</button></div>
+    <div class="msg" id="exWhere"></div>
+  </div>
+  <h2>文字でコピー</h2>
+  <button id="bTextCopy" style="width:100%">結果を文字でコピー</button>
+  <div class="msg" id="copyMsg"></div>
+</div>
+
+<div id="calBox" hidden>
+  <div id="calMsg">光るのに合わせて押してください</div>
+  <div id="calDot"></div>
+  <button id="calTap">ここを押す</button>
+</div>
+
+<script>
+(function(){
+document.documentElement.lang='ja';
+const $=id=>document.getElementById(id);
+// ---- LINEの中で開いたときは、スマホのブラウザへ移るボタンを出す ----
+// Android：Chromeを指定して開く（Chromeがなければ、いつものブラウザ）
+// iPhone ：LINEの「openExternalBrowser=1」で、Safariなどいつものブラウザで開く
+function setupOpenOut(ua){
+  if(!/ Line\//i.test(ua||'')) return false;
+  const ext=location.origin+location.pathname+'?openExternalBrowser=1';
+  const android=/Android/i.test(ua);
+  $('openOutBtn').href=android
+    ? 'intent://'+location.host+location.pathname+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(ext)+';end'
+    : ext;
+  $('openOutBtn').textContent=android?'Chromeで開く':'Safariで開く';
+  $('openOutNote').textContent=android
+    ? '開かないときは、右上の「︙」から「他のアプリで開く」を選んでください。'
+    : '開かないときは、右下の「︙」または共有マークから「Safariで開く」を選んでください。';
+  $('openOut').hidden=false;
+  return true;
+}
+// LINEで開いたら、自動でブラウザへ移る。
+// 1回目：「openExternalBrowser=1」を付けて開き直す（LINEがSafari・Chromeなどで開き直す。iPhone・Android共通）
+// 2回目（それでもLINEの中に残ったとき・Androidのみ）：Chromeを指定して開く。うまくいかなければボタンを押してもらう
+function autoOpenOut(ua){
+  if(!/ Line\//i.test(ua||'') || window.top!==window) return;   // claude.ai の公開ページ（枠の中）では動かさない
+  const tried=new URLSearchParams(location.search).has('openExternalBrowser');
+  if(!tried){ location.replace(location.origin+location.pathname+'?openExternalBrowser=1'); return; }
+  let again=false; try{ again=sessionStorage.getItem('swim-measure:intentTried')==='1'; sessionStorage.setItem('swim-measure:intentTried','1'); }catch(e){}
+  if(/Android/i.test(ua) && !again) setTimeout(()=>{ location.href=$('openOutBtn').href; },300);
+}
+if(setupOpenOut(navigator.userAgent)) autoOpenOut(navigator.userAgent);
+const v=$('video');
+const hasRVFC='requestVideoFrameCallback' in HTMLVideoElement.prototype;
+let curT=0, marks=[], nextId=1, fileKey=null, objUrl=null, fpsVal=60, pendingT=null, fpsSamples=[], lastMeta=null, needProbe=false, probing=false;
+let rvSel=null, audioCtx=null, rhyRaf=0, exporting=null, lastExport=null, soundOn=false, tab=1, OV=null;
+const PH={s:15,ti:5,to:15,f:5};   // スタート15m・ターンイン5m・ターンアウト15m・フィニッシュ5m
+const fps=()=>fpsVal>0?fpsVal:60;
+const f2=x=>Number.isFinite(x)?x.toFixed(2):'—';
+const f1=x=>Number.isFinite(x)?x.toFixed(1):'—';
+const fmtD=d=>(Math.round(d*1000)/1000).toString();
+function fmtT(s){ if(!Number.isFinite(s)) return '—'; if(s>=60){ const m=Math.floor(s/60), r=s-m*60; return m+':'+r.toFixed(2).padStart(5,'0'); } return s.toFixed(2); }
+const startT=()=>{ const s=marks.find(m=>m.type==='start'); return s?s.t:null; };
+const cfg=()=>({D:parseFloat($('evDist').value)||100, L:parseFloat($('pool').value)||25});
+let dateStr='';
+function meta(){ return {subj:$('subj').value.trim(), stroke:$('stroke').value, trial:$('trial').value||'1', date:dateStr}; }
+
+// ---- 種目とプールから、局面と区切り地点を作る ----
+function phases(){
+  const {D,L}=cfg(), s=PH.s, ti=PH.ti, to=PH.to, f=PH.f;
+  const laps=Math.max(1,Math.ceil(D/L-1e-9)), out=[]; let turn=0;
+  for(let k=0;k<laps;k++){
+    const a=k*L, b=Math.min((k+1)*L,D), last=(k===laps-1);
+    const sw1=(k===0)?a+s:a+to, sw2=last?b-f:b-ti;
+    if(k===0 && s>0) out.push({kind:'start', name:'スタート', d1:a, d2:Math.min(b,a+s)});
+    if(sw2>sw1) out.push({kind:'swim', name:'泳ぎ（'+(k+1)+'本目）', d1:sw1, d2:sw2});
+    if(!last){ turn++;
+      if(ti>0) out.push({kind:'in', name:'ターン'+turn+' イン', d1:b-ti, d2:b, turn});
+      if(to>0) out.push({kind:'out', name:'ターン'+turn+' アウト', d1:b, d2:b+to, turn});
+      if(ti>0&&to>0) out.push({kind:'turn', name:'ターン'+turn+' 合計', d1:b-ti, d2:b+to, turn});
+    } else if(f>0) out.push({kind:'fin', name:'フィニッシュ', d1:b-f, d2:b});
+  }
+  return out;
+}
+function checkpoints(){
+  const set=new Set(); phases().forEach(p=>{ set.add(+p.d1.toFixed(3)); set.add(+p.d2.toFixed(3)); });
+  return [...set].filter(d=>d>0).sort((a,b)=>a-b);
+}
+function wallDists(){
+  const {D,L}=cfg(), w=[];
+  for(let d=L; d<D-1e-9; d+=L) w.push(+d.toFixed(3));
+  w.push(D); return w;
+}
+// 通過の印は、時刻の順に、区切り地点を順番にあてはめる（距離は入力しない）
+function passList(){ const cps=checkpoints(); return marks.filter(m=>m.type==='pass').sort((a,b)=>a.t-b.t).map((m,i)=>({id:m.id,t:m.t,dist:i<cps.length?cps[i]:NaN})); }
+function timeAt(d){
+  if(Math.abs(d)<1e-6){ const s=startT(); if(s!==null) return s; }
+  const p=passList().find(x=>Math.abs(x.dist-d)<1e-6); return p?p.t:null;
+}
+function nextLabel(){
+  const cps=checkpoints(), n=passList().length, {D}=cfg();
+  if(n>=cps.length) return '通過はすべて記録済み';
+  const d=cps[n]; return '次 '+fmtD(d)+'m'+(Math.abs(d-D)<1e-6?'（ゴール）':wallDists().includes(d)?'（壁）':'');
+}
+
+// ---- 計算 ----
+function strokeStats(strokes,t1,t2,lastIn){
+  const s=strokes.filter(t=>t>=t1-1e-9 && (lastIn?t<=t2+1e-9:t<t2-1e-9)), n=s.length;
+  return {n, st:n>=2?(s[n-1]-s[0])/(n-1):NaN};
+}
+function computePhases(){
+  const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b), rows=[];
+  phases().forEach(p=>{
+    const t1=timeAt(p.d1), t2=timeAt(p.d2); if(t1===null||t2===null||!(t2>t1)) return;
+    const dt=t2-t1, vel=(p.d2-p.d1)/dt, ss=strokeStats(strokes,t1,t2,p.kind==='fin'), n=ss.n;
+    const st=p.kind==='turn'?NaN:ss.st;
+    rows.push(Object.assign({}, p, {t1, t2, dt, vel, n, st, tempo:60/st, sl:vel*st}));
+  });
+  return rows;
+}
+function summary(){
+  const mt=meta(), s0=startT(), {D,L}=cfg();
+  const laps=[]; let prev=s0; const walls=wallDists();
+  const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b);
+  walls.forEach((d,i)=>{ const t=timeAt(d);
+    const ok=t!==null&&prev!==null, ss=ok?strokeStats(strokes,prev,t,i===walls.length-1):{n:NaN};
+    laps.push({d, split:(t!==null&&s0!==null)?t-s0:NaN, lap:ok?t-prev:NaN, n:ss.n}); prev=t; });
+  const last=laps[laps.length-1], pr=computePhases();
+  const turns=[]; pr.filter(r=>r.turn).forEach(r=>{ let o=turns.find(x=>x.n===r.turn); if(!o){ o={n:r.turn}; turns.push(o); } o[r.kind]=r; });
+  return { meta:mt, D, L, pool:(L===25?'短水路':'長水路'), total:(last&&last.d===D)?last.split:NaN,
+    laps:laps.filter(l=>Number.isFinite(l.split)), start:pr.find(r=>r.kind==='start'), fin:pr.find(r=>r.kind==='fin'),
+    turns, swims:pr.filter(r=>r.kind==='swim'), strokeRows:pr.filter(r=>r.kind!=='turn' && Number.isFinite(r.vel) && (r.kind==='swim'||r.n>0)),
+    strokeTotal:laps.length&&laps.every(l=>Number.isFinite(l.n))?laps.reduce((a,l)=>a+l.n,0):NaN, date:mt.date?mt.date.replace(/-/g,'/'):new Date().toLocaleDateString('ja-JP') };
+}
+function cardTitle(S){ return (S.meta.subj||'ID未入力')+'　'+S.D+'m '+S.meta.stroke; }
+function summaryText(){
+  const S=summary(), L=[];
+  L.push('【計測結果】'+cardTitle(S)+'（'+S.pool+'）');
+  L.push(S.date+'　試技'+S.meta.trial);
+  L.push('■タイム '+(Number.isFinite(S.total)?fmtT(S.total)+'秒':'—'));
+  if(S.laps.length){ L.push('■ラップ（通過／ラップ／ストローク数）'); S.laps.forEach(l=>L.push('　'+fmtD(l.d)+'m　'+fmtT(l.split)+'／'+fmtT(l.lap)+'／'+(Number.isFinite(l.n)?l.n+'回':'—')));
+    if(Number.isFinite(S.strokeTotal)) L.push('　ストローク数の合計 '+S.strokeTotal+'回（ターン・フィニッシュ中も含む）'); }
+  if(S.start) L.push('■スタート（0–'+fmtD(S.start.d2)+'m）'+fmtT(S.start.dt)+'秒');
+  S.turns.forEach(t=>{ const d=[t.in?'イン'+fmtT(t.in.dt):'', t.out?'アウト'+fmtT(t.out.dt):''].filter(Boolean).join('／');
+    if(t.turn||t.in||t.out) L.push('■ターン'+t.n+' '+(t.turn?fmtT(t.turn.dt)+'秒':'')+(d?'（'+d+'）':'')); });
+  if(S.fin) L.push('■フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）'+fmtT(S.fin.dt)+'秒');
+  if(S.strokeRows.length) L.push('―― 区間ごとのストローク ――');
+  S.strokeRows.forEach(r=>{
+    L.push('■'+r.name+' '+fmtD(r.d1)+'–'+fmtD(r.d2)+'m');
+    L.push('　泳速度 '+f2(r.vel)+'m/秒'+(Number.isFinite(r.n)?'　ストローク数 '+r.n+'回':''));
+    if(Number.isFinite(r.st)) L.push('　ストロークタイム '+f2(r.st)+'秒　テンポ '+f1(r.tempo)+'回/分　ストローク長 '+f2(r.sl)+'m');
+  });
+  return L.join('\n');
+}
+
+// ---- 映像に重ねる結果（動画づくりで使う）----
+function buildOverlay(){
+  const s0=startT(), pr=computePhases(), walls=wallDists(), S=summary();
+  const passes=passList().filter(p=>Number.isFinite(p.dist));
+  const strokes=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b);
+  const ev=[];
+  passes.forEach(p=>{
+    if(s0===null||p.t<s0) return;
+    const isWall=walls.some(w=>Math.abs(w-p.dist)<1e-6), lap=S.laps.find(l=>Math.abs(l.d-p.dist)<1e-6);
+    ev.push({t:p.t, kind:isWall?'wall':'pass', title:fmtD(p.dist)+'m 通過　'+fmtT(p.t-s0),
+      body:(isWall&&lap&&Number.isFinite(lap.lap))?'ラップ '+fmtT(lap.lap)+(Number.isFinite(lap.n)?'　ストローク '+lap.n+'回':''):''});
+  });
+  pr.forEach(r=>{
+    if(r.kind==='out') return;
+    let body;
+    const sk=(r.n>0?'　ストローク '+r.n+'回':'')+(Number.isFinite(r.st)?'　ストロークタイム '+f2(r.st)+' 秒　ストローク長 '+f2(r.sl)+' m':'');
+    if(r.kind==='swim') body='泳速度 '+f2(r.vel)+' m/秒'+sk;
+    else if(r.kind==='turn'){ const t=S.turns.find(o=>o.n===r.turn); body=fmtT(r.dt)+' 秒'+(t&&t.in&&t.out?'（イン '+fmtT(t.in.dt)+' ／ アウト '+fmtT(t.out.dt)+'）':''); }
+    else body=fmtT(r.dt)+' 秒'+sk;
+    ev.push({t:r.t2, kind:r.kind, title:r.name, body});
+  });
+  ev.sort((a,b)=>a.t-b.t);
+  OV={s0, pr, strokes, ev, total:S.total, finT:(Number.isFinite(S.total)&&s0!==null)?s0+S.total:null};
+}
+function drawOverlay(x,w,h,t,sumAlpha){
+  if(!OV) return;
+  if(sumAlpha===undefined) sumAlpha=(OV.finT!==null)?Math.max(0,Math.min(1,(t-(OV.finT+1))/0.4)):0;   // ゴールの1秒後から、まとめを出す
+  drawOverlayParts(x,w,h,t);
+  if(sumAlpha>0) drawSummary(x,w,h,sumAlpha);
+}
+// ゴール後のまとめ画面：タイム・ラップ・スタート／ターン／フィニッシュ・泳ぎの局面の値をすべて出す
+function drawSummary(x,w,h,alpha){
+  const S=summary(), F='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif';
+  const L=[], R=[];
+  L.push({k:'title', a:cardTitle(S), b:S.pool+'（'+S.L+'m）・試技'+S.meta.trial+'・'+S.date});
+  L.push({k:'big', label:'タイム', val:Number.isFinite(S.total)?fmtT(S.total):'—'});
+  if(S.laps.length){ L.push({k:'head', t:'ラップ'}); L.push({k:'th', cells:['距離','通過タイム','ラップ','ストローク数'], xs:[0,.24,.5,.74]});
+    S.laps.forEach(l=>L.push({k:'row', cells:[fmtD(l.d)+'m',fmtT(l.split),fmtT(l.lap),Number.isFinite(l.n)?l.n+'回':'—'], xs:[0,.24,.5,.74], hi:2}));
+    if(Number.isFinite(S.strokeTotal)) L.push({k:'row', cells:['ストローク数の合計（ターン・フィニッシュ中も含む）',S.strokeTotal+'回'], xs:[0,1], hi:1, small0:1}); }
+  const P=[];
+  if(S.start) P.push(['スタート（0–'+fmtD(S.start.d2)+'m）','',fmtT(S.start.dt)+' 秒']);
+  S.turns.forEach(o=>{ if(o.turn||o.in||o.out) P.push(['ターン'+o.n, [o.in?'イン '+fmtT(o.in.dt):'',o.out?'アウト '+fmtT(o.out.dt):''].filter(Boolean).join('／'), o.turn?fmtT(o.turn.dt)+' 秒':'—']); });
+  if(S.fin) P.push(['フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）','',fmtT(S.fin.dt)+' 秒']);
+  if(P.length){ R.push({k:'head', t:'スタート・ターン・フィニッシュ'}); P.forEach(p=>R.push({k:'row', cells:p, xs:[0,.42,1], hi:2, sub:1})); }
+  const sw=S.strokeRows;
+  if(sw.length){ const xs=[0,.25,.41,.58,.74,.9];
+    R.push({k:'head', t:'区間ごとのストローク'});
+    R.push({k:'th2', cells:[['区間',''],['泳速度','m/秒'],['ストローク','タイム 秒'],['テンポ','回/分'],['ストローク長','m'],['ストローク','数']], xs});
+    sw.forEach(r=>R.push({k:'row', cells:[r.name.replace('泳ぎ','').replace(/[（）]/g,'')+' '+fmtD(r.d1)+'–'+fmtD(r.d2)+'m', f2(r.vel), f2(r.st), f1(r.tempo), f2(r.sl), Number.isFinite(r.n)?String(r.n):'—'], xs, small0:1}));
+  }
+  const H0={title:92,big:136,head:62,th:40,th2:58,row:44};
+  const land=w>=h*1.1, pad=Math.min(w,h)*0.04, u0=Math.min(w,h)/720;
+  const cols=land?[L,R]:[L.concat(R)], colW=land?(w-3*pad)/2:(w-2*pad);
+  const need=Math.max(...cols.map(c=>c.reduce((s,it)=>s+H0[it.k],0)))*u0;
+  const s=Math.min(1,(h-2*pad-30*u0)/need), u=u0*s;
+  x.save(); x.globalAlpha=alpha;
+  x.fillStyle='rgba(8,24,44,.9)'; x.fillRect(0,0,w,h);
+  x.textBaseline='alphabetic';
+  cols.forEach((col,ci)=>{
+    const cx=pad+ci*(colW+pad); let y=pad;
+    col.forEach(it=>{
+      const hgt=H0[it.k]*u;
+      if(it.k==='title'){ x.fillStyle='#ffffff'; x.font='700 '+(38*u)+'px '+F; x.textAlign='left'; x.fillText(it.a,cx,y+42*u,colW);
+        x.fillStyle='#9fb9d0'; x.font='400 '+(24*u)+'px '+F; x.fillText(it.b,cx,y+78*u,colW); }
+      else if(it.k==='big'){ x.fillStyle='#9fb9d0'; x.font='700 '+(26*u)+'px '+F; x.textAlign='left'; x.fillText(it.label,cx,y+30*u);
+        x.fillStyle='#ffffff'; x.font='800 '+(92*u)+'px '+F; x.fillText(it.val,cx,y+120*u);
+        if(it.val!=='—'){ const vw=x.measureText(it.val).width; x.fillStyle='#9fb9d0'; x.font='700 '+(32*u)+'px '+F; x.fillText('秒',cx+vw+10*u,y+120*u); } }
+      else if(it.k==='head'){ x.fillStyle='#5ec8d8'; x.font='700 '+(28*u)+'px '+F; x.textAlign='left'; x.fillText(it.t,cx,y+38*u);
+        x.fillStyle='rgba(255,255,255,.25)'; x.fillRect(cx,y+50*u,colW,2*u); }
+      else if(it.k==='th'||it.k==='th2'){ x.fillStyle='#9fb9d0'; x.textAlign='left';
+        it.cells.forEach((c,i)=>{ const tx=cx+it.xs[i]*colW, arr=Array.isArray(c)?c:[c,''];
+          const room=Math.max(10,(it.xs[i+1]!==undefined?it.xs[i+1]*colW:colW)-it.xs[i]*colW-6*u);
+          x.font='400 '+(20*u)+'px '+F; x.fillText(arr[0],tx,y+(it.k==='th2'?24:28)*u,room);
+          if(arr[1]){ x.font='400 '+(17*u)+'px '+F; x.fillText(arr[1],tx,y+46*u,room); } }); }
+      else if(it.k==='row'){
+        it.cells.forEach((c,i)=>{ const last=(it.xs[i]>=1), tx=last?cx+colW:cx+it.xs[i]*colW;
+          x.textAlign=last?'right':'left';
+          if(it.sub && i===1){ x.fillStyle='#9fb9d0'; x.font='400 '+(21*u)+'px '+F; }
+          else if(i===0){ x.fillStyle='#e6eef5'; x.font=(it.small0?'400 '+(22*u):'700 '+(26*u))+'px '+F; }
+          else { x.fillStyle=(i===it.hi)?'#5ec8d8':'#ffffff'; x.font='800 '+(28*u)+'px '+F; }
+          const room=last?colW*(1-(it.xs[i-1]||0))-8*u:((it.xs[i+1]!==undefined?it.xs[i+1]*colW:colW)-it.xs[i]*colW-8*u);
+          x.fillText(c,tx,y+32*u,Math.max(10,room));   // 欄からはみ出す長さは、文字を細めて収める
+        });
+        x.textAlign='left'; x.fillStyle='rgba(255,255,255,.08)'; x.fillRect(cx,y+hgt-2*u,colW,1*u);
+      }
+      y+=hgt;
+    });
+  });
+  x.fillStyle='#7f98ad'; x.font='400 '+(18*u0)+'px '+F; x.textAlign='right'; x.fillText('泳ぎの映像計測',w-pad,h-pad*0.6); x.textAlign='left';
+  x.restore();
+}
+function drawOverlayParts(x,w,h,t){
+  const u=Math.min(w,h)/720, pad=16*u, F='"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif';
+  const box=(bx,by,bw,bh,fill)=>{ x.fillStyle=fill; x.beginPath(); if(x.roundRect) x.roundRect(bx,by,bw,bh,10*u); else x.rect(bx,by,bw,bh); x.fill(); };
+  x.textBaseline='alphabetic'; x.textAlign='left';
+  // 左上：タイム
+  if(OV.s0!==null){
+    let label='タイム', val;
+    if(t<OV.s0-1e-6){ label='スタート前'; val='0.00'; }
+    else if(OV.finT!==null && t>=OV.finT-1e-6){ label='ゴール'; val=fmtT(OV.total); }
+    else val=fmtT(t-OV.s0);
+    x.font='800 '+(64*u)+'px '+F; const vw=x.measureText(val).width;
+    box(pad,pad,Math.max(vw,120*u)+40*u,118*u,'rgba(13,59,102,.85)');
+    x.fillStyle='#cfe3f3'; x.font='700 '+(24*u)+'px '+F; x.fillText(label,pad+20*u,pad+34*u);
+    x.fillStyle='#ffffff'; x.font='800 '+(64*u)+'px '+F; x.fillText(val,pad+20*u,pad+100*u);
+  }
+  // 下：いまの区間とその値
+  const cur=OV.pr.find(r=>r.kind!=='turn' && t>=r.t1-1e-6 && t<r.t2-1e-6);
+  if(cur){
+    const swim=cur.kind==='swim', bh=(swim?150:100)*u, by=h-bh-pad, bw=w-2*pad;
+    box(pad,by,bw,bh,'rgba(0,0,0,.62)');
+    x.fillStyle='#9fd8e0'; x.font='700 '+(26*u)+'px '+F; x.fillText(cur.name+'　'+fmtD(cur.d1)+'–'+fmtD(cur.d2)+'m',pad+20*u,by+38*u);
+    if(swim){
+      const n=OV.strokes.filter(s=>s>=cur.t1-1e-9 && s<=t+1e-9).length;
+      let items=[['泳速度',f2(cur.vel),'m/秒'],['ストロークタイム',f2(cur.st),'秒'],['ストローク長',f2(cur.sl),'m'],['テンポ',f1(cur.tempo),'回/分'],['ストローク数',String(n),'回']];
+      if(w<h*1.2) items=items.slice(0,3);   // 縦長の映像では3つに絞る
+      const tw=(bw-40*u)/items.length, vs=Math.min(46*u,tw/4.4);
+      items.forEach(([lab,val,unit],i)=>{ const tx=pad+20*u+i*tw;
+        x.fillStyle='#c8d2da'; x.font='400 '+Math.min(20*u,tw/8)+'px '+F; x.fillText(lab,tx,by+74*u);
+        x.fillStyle='#ffffff'; x.font='800 '+vs+'px '+F; x.fillText(val,tx,by+128*u);
+        if(val!=='—'){ const vw=x.measureText(val).width; x.fillStyle='#c8d2da'; x.font='400 '+(vs*0.45)+'px '+F; x.fillText(unit,tx+vw+6*u,by+128*u); }
+      });
+    } else {
+      x.fillStyle='#ffffff'; x.font='800 '+(42*u)+'px '+F; const tt=fmtT(t-cur.t1)+' 秒'; x.fillText(tt,pad+20*u,by+86*u);
+      const n=OV.strokes.filter(s=>s>=cur.t1-1e-9 && s<=t+1e-9).length;   // スタート・ターン・フィニッシュ中にかいた回数
+      if(n>0){ const tw=x.measureText(tt).width; x.fillStyle='#c8d2da'; x.font='700 '+(30*u)+'px '+F; x.fillText('ストローク '+n+' 回',pad+50*u+tw,by+86*u); }
+    }
+  }
+  // 右上：通知（通過・区間の結果）
+  const act=OV.ev.filter(e=>t>=e.t-1e-6 && t<e.t+2.5).slice(-3);
+  const maxW=(w>=h)?w*0.6:w-2*pad;
+  let ny=(OV.s0!==null && w-2*pad-maxW<300*u)?pad+130*u:pad;   // 縦長の映像では、タイムの下に出す
+  act.forEach(e=>{
+    const age=t-e.t, alpha=age>2.1?Math.max(0,(2.5-age)/0.4):1;
+    x.font='400 '+(22*u)+'px '+F;
+    const words=e.body?e.body.split('　'):[], lines=[]; let line='';
+    words.forEach(wd=>{ const tryL=line?line+'　'+wd:wd; if(x.measureText(tryL).width>maxW-44*u && line){ lines.push(line); line=wd; } else line=tryL; });
+    if(line) lines.push(line);
+    x.font='700 '+(28*u)+'px '+F; let bwid=x.measureText(e.title).width;
+    x.font='400 '+(22*u)+'px '+F; lines.forEach(l=>{ bwid=Math.max(bwid,x.measureText(l).width); });
+    bwid=Math.min(maxW,bwid+44*u); const bh=(48+lines.length*30)*u, bx=w-pad-bwid;
+    x.globalAlpha=alpha;
+    box(bx,ny,bwid,bh,'rgba(255,255,255,.94)');
+    x.fillStyle=e.kind==='swim'?'#e0702d':e.kind==='wall'?'#1b8a9a':'#0d3b66'; x.fillRect(bx,ny+8*u,7*u,bh-16*u);
+    x.fillStyle='#0d3b66'; x.font='700 '+(28*u)+'px '+F; x.fillText(e.title,bx+20*u,ny+38*u);
+    x.fillStyle='#1d2329'; x.font='400 '+(22*u)+'px '+F; lines.forEach((l,i)=>x.fillText(l,bx+20*u,ny+(70+i*30)*u));
+    x.globalAlpha=1; ny+=bh+10*u;
+  });
+}
+function defragMp4(u){
+  const dv=new DataView(u.buffer,u.byteOffset,u.byteLength);
+  const typ=o=>String.fromCharCode(u[o+4],u[o+5],u[o+6],u[o+7]);
+  const boxes=(s,e)=>{ const r=[]; let o=s; while(o+8<=e){ let sz=dv.getUint32(o), h=8; if(sz===1){ sz=Number(dv.getBigUint64(o+8)); h=16; } else if(sz===0) sz=e-o; if(sz<h||o+sz>e) throw new Error('box'); r.push({t:typ(o),s:o,e:o+sz,c:o+h}); o+=sz; } return r; };
+  const kid=(b,t)=>boxes(b.c,b.e).find(x=>x.t===t);
+  const top=boxes(0,u.length), moov=top.find(b=>b.t==='moov'); if(!moov) throw new Error('no moov');
+  const traks=boxes(moov.c,moov.e).filter(b=>b.t==='trak'); if(traks.length!==1) throw new Error('trak');
+  const trak=traks[0], mdia=kid(trak,'mdia'), minf=kid(mdia,'minf'), stbl=kid(minf,'stbl'), stsd=kid(stbl,'stsd');
+  const mvex=kid(moov,'mvex'), trex=mvex&&kid(mvex,'trex');
+  let dDur=trex?dv.getUint32(trex.c+16):0, dSize=trex?dv.getUint32(trex.c+20):0, dFlags=trex?dv.getUint32(trex.c+24):0;
+  const S=[];   // {off,size,dur,sync,cto}
+  for(const moof of top.filter(b=>b.t==='moof')){
+    for(const traf of boxes(moof.c,moof.e).filter(b=>b.t==='traf')){
+      const tfhd=kid(traf,'tfhd'); const tf=dv.getUint32(tfhd.c)&0xffffff; let p=tfhd.c+8;
+      let base=moof.s, fDur=dDur, fSize=dSize, fFlags=dFlags;
+      if(tf&1){ base=Number(dv.getBigUint64(p)); p+=8; } if(tf&2) p+=4;
+      if(tf&8){ fDur=dv.getUint32(p); p+=4; } if(tf&16){ fSize=dv.getUint32(p); p+=4; } if(tf&32){ fFlags=dv.getUint32(p); p+=4; }
+      let pos=base;
+      for(const trun of boxes(traf.c,traf.e).filter(b=>b.t==='trun')){
+        const vf=dv.getUint32(trun.c), ver=vf>>>24, fl=vf&0xffffff, n=dv.getUint32(trun.c+4); let q=trun.c+8;
+        if(fl&1){ pos=base+dv.getInt32(q); q+=4; } let first=null; if(fl&4){ first=dv.getUint32(q); q+=4; }
+        for(let i=0;i<n;i++){
+          let dur=fDur,size=fSize,flags=(i===0&&first!==null)?first:fFlags,cto=0;
+          if(fl&0x100){ dur=dv.getUint32(q); q+=4; } if(fl&0x200){ size=dv.getUint32(q); q+=4; }
+          if(fl&0x400){ flags=dv.getUint32(q); q+=4; } if(fl&0x800){ cto=ver?dv.getInt32(q):dv.getUint32(q); q+=4; }
+          if(pos+size>u.length) throw new Error('data');
+          S.push({off:pos,size,dur,sync:!(flags&0x10000),cto}); pos+=size;
+        }
+      }
+    }
+  }
+  if(!S.length) throw new Error('no samples');
+  // 最後のコマの長さが0なら、1つ前と同じにする
+  if(!S[S.length-1].dur) S[S.length-1].dur=S.length>1?S[S.length-2].dur:1;
+  const mts=dv.getUint32(kid(mdia,'mdhd').c+(u[kid(mdia,'mdhd').c]?20:12));
+  const mvhd=kid(moov,'mvhd'), vts=dv.getUint32(mvhd.c+(u[mvhd.c]?20:12));
+  const total=S.reduce((a,s)=>a+s.dur,0), mvDur=Math.round(total*vts/mts);
+  // 箱を組み立てる道具
+  const B=(t,...parts)=>{ const len=8+parts.reduce((a,x)=>a+x.length,0); const o=new Uint8Array(len); new DataView(o.buffer).setUint32(0,len); for(let i=0;i<4;i++) o[4+i]=t.charCodeAt(i); let k=8; for(const x of parts){ o.set(x,k); k+=x.length; } return o; };
+  const U32=a=>{ const o=new Uint8Array(a.length*4), d=new DataView(o.buffer); a.forEach((x,i)=>d.setUint32(i*4,x>>>0)); return o; };
+  const raw=b=>u.slice(b.s,b.e);
+  const patchDur=(b,off0,off1,val)=>{ const o=raw(b), d=new DataView(o.buffer), c=b.c-b.s; if(o[c]) d.setBigUint64(c+off1,BigInt(val)); else d.setUint32(c+off0,val); return o; };
+  const sizes=S.map(s=>s.size);
+  // コマの長さ（同じ長さが続くものはまとめる）
+  const stts=[]; for(const s of S){ const l=stts[stts.length-1]; if(l&&l[1]===s.dur) l[0]++; else stts.push([1,s.dur]); }
+  const ctts=[]; for(const s of S){ const l=ctts[ctts.length-1]; if(l&&l[1]===s.cto) l[0]++; else ctts.push([1,s.cto]); }
+  const syncs=[]; S.forEach((s,i)=>{ if(s.sync) syncs.push(i+1); });
+  const others=(b,skip)=>boxes(b.c,b.e).filter(x=>!skip.includes(x.t)).map(raw);
+  const build=mdatOff=>{
+    const st=[raw(stsd), B('stts',U32([0,stts.length,...stts.flat()]))];
+    if(ctts.some(x=>x[1])) st.push(B('ctts',U32([0,ctts.length,...ctts.flat()])));
+    if(syncs.length<S.length) st.push(B('stss',U32([0,syncs.length,...syncs])));
+    st.push(B('stsc',U32([0,1,1,S.length,1])), B('stsz',U32([0,0,S.length,...sizes])), B('stco',U32([0,1,mdatOff])));
+    const nStbl=B('stbl',...st);
+    const nMinf=B('minf',...others(minf,['stbl']),nStbl);
+    const nMdia=B('mdia',patchDur(kid(mdia,'mdhd'),16,24,total),...others(mdia,['mdhd','minf']),nMinf);
+    const nTrak=B('trak',patchDur(kid(trak,'tkhd'),20,28,mvDur),...others(trak,['tkhd','mdia','edts']),nMdia);
+    return B('moov',patchDur(mvhd,16,24,mvDur),...others(moov,['mvhd','trak','mvex']),nTrak);
+  };
+  const ftyp=B('ftyp',new Uint8Array([105,115,111,109,0,0,2,0,105,115,111,109,105,115,111,50,97,118,99,49,109,112,52,49]));   // isom / isom iso2 avc1 mp41
+  const dataLen=sizes.reduce((a,x)=>a+x,0);
+  const moovLen=build(0).length, mdatOff=ftyp.length+moovLen+8;
+  const out=new Uint8Array(ftyp.length+moovLen+8+dataLen);
+  out.set(ftyp,0); out.set(build(mdatOff),ftyp.length);
+  const mh=ftyp.length+moovLen; new DataView(out.buffer).setUint32(mh,8+dataLen); out.set([109,100,97,116],mh+4);
+  let k=mdatOff; for(const s of S){ out.set(u.subarray(s.off,s.off+s.size),k); k+=s.size; }
+  return out;
+}
+
+// ---- 保存（この端末のブラウザの中だけ）----
+function store(){ if(!fileKey) return; try{ localStorage.setItem(fileKey, JSON.stringify({marks,nextId,fps:fpsVal,meta:meta(),D:$('evDist').value,L:$('pool').value})); }catch(e){} }
+function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; nextId=o.nextId||marks.length+1;
+  if(o.meta){ $('subj').value=o.meta.subj||''; $('stroke').value=o.meta.stroke||'自由形'; $('trial').value=o.meta.trial||1; }
+  if(o.D) $('evDist').value=o.D; if(o.L) $('pool').value=o.L; if(o.fps){ fpsVal=o.fps; $('fps').value=o.fps; } return marks.length; }catch(e){ return 0; } }
+['evDist','pool','stroke','trial','subj','fps'].forEach(id=>$(id).addEventListener('change',()=>{ if(id==='fps'){ const f=parseFloat($('fps').value); if(f>0) fpsVal=f; } store(); renderAll(); }));
+
+// ---- タブ ----
+function showTab(n){
+  tab=n; [1,2,3].forEach(i=>{ $('p'+i).hidden=(i!==n); $('t'+i).classList.toggle('on',i===n); });
+  if(n!==2 && !v.paused && !exporting) v.pause();
+  $('nextTag').style.visibility=(n===2)?'visible':'hidden';
+  if(n===3) renderResult();
+  window.scrollTo(0,0);
+}
+[1,2,3].forEach(i=>$('t'+i).onclick=()=>showTab(i));
+$('goRec').onclick=()=>showTab(2);
+$('goRes').onclick=()=>showTab(3);
+
+// ---- 映像の読み込み ----
+$('file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  if(objUrl) URL.revokeObjectURL(objUrl);
+  objUrl=URL.createObjectURL(f);
+  fileKey='swim-mobile:'+f.name+':'+f.size;
+  { const d=new Date(f.lastModified||Date.now()); dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  marks=[]; nextId=1; fpsSamples=[]; rvSel=null; pendingT=null;
+  let saved=false; try{ const s=localStorage.getItem(fileKey); saved=!!(s&&JSON.parse(s).fps); }catch(err){}
+  const n=restore(); needProbe=!saved;
+  v.src=objUrl; v.hidden=false; $('ph').hidden=true; $('clock').hidden=false; $('nextTag').hidden=false;
+  $('loadMsg').textContent=n?('前回この映像につけた印を読み込みました（'+n+'件）。'):'映像を読み込みました。';
+  $('goRec').disabled=false; applySound(); renderAll();
+});
+v.addEventListener('loadedmetadata',()=>{ const s=$('seek'); s.max=v.duration||0; s.disabled=!(v.duration>0); s.value=0; });
+v.addEventListener('loadeddata',()=>{ curT=v.currentTime; updateClock(); if(needProbe){ needProbe=false; probeFps(); } });
+// 読み込んだ直後に約1秒だけ再生して、映像のコマ数を調べる
+async function probeFps(){
+  if(!hasRVFC){ $('fpsEst').textContent='コマ数を自動で調べられません。必要なら上の欄に入れてください（初めは60）。'; return; }
+  probing=true; $('fpsEst').textContent='映像のコマ数を調べています…'; $('goRec').disabled=true;
+  v.playbackRate=1; v.muted=true;
+  try{ await v.play(); }catch(e){ applySound(); probing=false; $('goRec').disabled=false; $('fpsEst').textContent='コマ数は、初めの設定（60）のままです。'; return; }
+  setTimeout(()=>{
+    v.pause(); applySound(); v.playbackRate=0.5; pendingT=null; v.currentTime=0; probing=false; $('goRec').disabled=false;
+    if(fpsSamples.length>=15){
+      const s=[...fpsSamples].sort((a,b)=>a-b), med=s[Math.floor(s.length/2)], est=1/med, r=Math.round(est);
+      fpsVal=Math.abs(r-est)<0.15?r:Math.round(est*100)/100; $('fps').value=fpsVal;
+      $('fpsEst').textContent='映像のコマ数を、約 '+fpsVal+' コマ/秒に設定しました。'; store();
+    } else $('fpsEst').textContent='コマ数を推定できませんでした。上の欄に撮影の設定（例：60）を入れてください。';
+  },1300);
+}
+function onFrame(now,m){
+  curT=m.mediaTime; if(!v.seeking) pendingT=null;
+  if(!v.paused && lastMeta && m.presentedFrames-lastMeta.presentedFrames===1){
+    const d=m.mediaTime-lastMeta.mediaTime;
+    if(d>0.0005 && d<0.5){ fpsSamples.push(d); if(fpsSamples.length>120) fpsSamples.shift(); }
+  }
+  lastMeta=m; updateClock(); v.requestVideoFrameCallback(onFrame);
+}
+if(hasRVFC) v.requestVideoFrameCallback(onFrame);
+v.addEventListener('timeupdate',()=>{ if(!hasRVFC){ curT=v.currentTime; updateClock(); } });
+v.addEventListener('seeked',()=>{ if(!hasRVFC){ curT=v.currentTime; updateClock(); } });
+v.addEventListener('pause',()=>{ lastMeta=null; $('bPlay').textContent='▶ 再生'; });
+v.addEventListener('play',()=>{ $('bPlay').textContent='■ 停止'; if(!rhyRaf) rhyRaf=requestAnimationFrame(laneTick); });
+function updateClock(){
+  const s=startT(), r=s===null?NaN:curT-s;
+  $('clock').textContent=(Number.isFinite(r)?'スタートから '+r.toFixed(2)+' 秒':'映像 '+curT.toFixed(2)+' 秒');
+  if(!seekDrag) $('seek').value=curT;
+}
+let seekDrag=false;
+$('seek').addEventListener('pointerdown',()=>{ seekDrag=true; });
+$('seek').addEventListener('input',()=>{ seekTo(parseFloat($('seek').value)); });
+document.addEventListener('pointerup',()=>{ if(seekDrag) setTimeout(()=>{ seekDrag=false; },200); });
+
+// ---- 操作 ----
+function step(n){
+  if(!v.src) return; v.pause();
+  const base=(pendingT!==null)?pendingT:curT, dur=v.duration||0;
+  pendingT=Math.max(0,Math.min(dur-1/fps(),base+n/fps()));
+  v.currentTime=Math.min(dur-0.0001,pendingT+0.25/fps());
+}
+function seekTo(t){ if(!v.src) return; v.pause(); pendingT=Math.max(0,t); v.currentTime=pendingT+0.25/fps(); }
+function togglePlay(){ if(!v.src) return; v.paused?v.play():v.pause(); }
+$('bPlay').onclick=togglePlay; $('rvPlay').onclick=togglePlay;
+$('bBack').onclick=()=>step(-1); $('bFwd').onclick=()=>step(1);
+function markRate(){ document.querySelectorAll('#rates [data-rate]').forEach(b=>b.classList.toggle('on',Math.abs(parseFloat(b.dataset.rate)-(v.playbackRate||1))<1e-6)); }
+document.querySelectorAll('#rates [data-rate]').forEach(b=>b.onclick=()=>{ v.playbackRate=parseFloat(b.dataset.rate); markRate(); });
+v.addEventListener('ratechange',markRate);
+function applySound(){ v.muted=!soundOn; v.volume=0.4; $('bSound').textContent=soundOn?'音 入':'音 切'; }
+$('bSound').onclick=()=>{ soundOn=!soundOn; applySound(); };
+applySound();
+
+// ---- 押すくせの補正 ----
+const TAPOFF_KEY='swim-measure:tapOffset';
+try{ const o=parseFloat(localStorage.getItem(TAPOFF_KEY)); if(Number.isFinite(o)) $('tapOff').value=Math.round(o); }catch(e){}
+$('tapOff').addEventListener('change',()=>{ try{ localStorage.setItem(TAPOFF_KEY,String(parseFloat($('tapOff').value)||0)); }catch(e){} });
+function tapTime(){   // 押した瞬間の映像の時刻から、くせの分（再生の速さをかける）を差し引き、いちばん近いコマにそろえる
+  const off=(parseFloat($('tapOff').value)||0)/1000, rate=v.playbackRate||1, F=fps();
+  return Math.round(Math.max(0,v.currentTime-off*rate)*F)/F;
+}
+function beep(freq){ try{ audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.frequency.value=freq; g.gain.setValueAtTime(0.12,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.06); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.07); }catch(e){} }
+
+// ---- 印をつける ----
+function flash(t,warn){ const el=$('rInfo'); el.textContent=t; el.classList.toggle('warn',!!warn); }
+function strokeGaps(){
+  const st=marks.filter(m=>m.type==='stroke').map(m=>m.t).sort((a,b)=>a-b), g=[];
+  for(let i=1;i<st.length;i++) g.push(st[i]-st[i-1]);
+  if(g.length<2) return {st, g:[]};
+  const med=[...g].sort((a,b)=>a-b)[Math.floor(g.length/2)];
+  return {st, g:g.filter(x=>x<1.8*med&&x>0.4*med)};
+}
+function rhyScore(){
+  const {st,g}=strokeGaps(); if(g.length<3) return 'ストローク '+st.length+' 回';
+  const m=g.reduce((a,b)=>a+b,0)/g.length, sd=Math.sqrt(g.reduce((a,b)=>a+(b-m)**2,0)/g.length), cv=sd/m*100;
+  return 'ストローク '+st.length+' 回・リズムのばらつき '+cv.toFixed(1)+'%（'+(cv<3?'★★★':cv<6?'★★':'★')+'）';
+}
+function addMark(type){
+  if(!v.src){ flash('先に「① 準備」で映像を選んでください。',true); return; }
+  const playing=!v.paused;
+  const t=playing?tapTime():(pendingT!==null?pendingT:Math.round(curT*fps())/fps());
+  if(type==='pass' && passList().length>=checkpoints().length){ flash('通過はすべて記録済みです。',true); return; }
+  if(type==='start') marks=marks.filter(x=>x.type!=='start');
+  else if(marks.find(x=>x.type===type && Math.abs(x.t-t)<0.5/fps())){ flash('同じコマに、同じ印があります。',true); return; }
+  marks.push({id:nextId++,type,t}); store(); renderAll();
+  const b=type==='pass'?$('bPass'):type==='start'?$('bStart'):$('bStroke'); b.classList.add('hit'); setTimeout(()=>b.classList.remove('hit'),90);
+  beep(type==='pass'?660:type==='start'?520:880);
+  flash((type==='pass'?'通過を記録しました。':type==='start'?'スタート（0秒）を記録しました。':'')+rhyScore(),false);
+}
+[['bStroke','stroke'],['bPass','pass'],['bStart','start']].forEach(([id,type])=>{
+  $(id).addEventListener('pointerdown',e=>{ e.preventDefault(); addMark(type); });
+  $(id).addEventListener('click',e=>e.preventDefault());
+});
+$('bUndo').onclick=()=>{
+  if(!marks.length){ flash('取り消す印がありません。',true); return; }
+  const last=marks.reduce((a,b)=>b.id>a.id?b:a); marks=marks.filter(m=>m!==last); store(); renderAll();
+  flash('いちばん新しい印（'+({start:'スタート',pass:'通過',stroke:'ストローク'}[last.type])+'）を取り消しました。',false);
+};
+function laneTick(){   // 次のストロークが来そうな時刻へ向かって、帯が伸びる
+  rhyRaf=0;
+  const t=v.currentTime, st=marks.filter(m=>m.type==='stroke'&&m.t<=t+1e-6).map(m=>m.t).sort((a,b)=>a-b), fill=$('laneFill');
+  let w=0, near=false;
+  if(st.length>=3){
+    const g=[]; for(let i=Math.max(1,st.length-3);i<st.length;i++) g.push(st[i]-st[i-1]);
+    const T=[...g].sort((a,b)=>a-b)[Math.floor(g.length/2)], last=st[st.length-1], p=(t-last)/T;
+    if(T>0.2&&T<3&&p<1.6){ w=Math.min(1,p); near=p>0.85; }
+  }
+  fill.style.width=(w*100)+'%'; fill.classList.toggle('near',near);
+  if(!v.paused) rhyRaf=requestAnimationFrame(laneTick);
+}
+// くせを測る：丸が一定のリズムで光り、それに合わせて押したずれを測る
+(function(){
+  let cal=null; const N=14, GAP=0.8;
+  $('bCal').onclick=()=>{
+    if(cal) return; v.pause();
+    $('calBox').hidden=false; $('calMsg').textContent='光るのに合わせて押してください（はじめの数回は練習）'; $('bCal').disabled=true;
+    cal={flashes:[], taps:[], t0:performance.now()+900, k:0};
+    const loop=now=>{
+      if(!cal) return;
+      const due=cal.t0+cal.k*GAP*1000;
+      if(cal.k<N && now>=due){ $('calDot').classList.add('on'); cal.flashes.push(now); cal.k++; setTimeout(()=>$('calDot').classList.remove('on'),120); }
+      if(cal.k>=N && now>cal.t0+(N-1)*GAP*1000+700){ finish(); return; }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  };
+  $('calTap').addEventListener('pointerdown',e=>{ e.preventDefault(); if(cal){ cal.taps.push(e.timeStamp||performance.now()); beep(880); } });
+  function finish(){
+    const c=cal; cal=null; $('calBox').hidden=true; $('bCal').disabled=false;
+    const d=[]; c.taps.forEach(t=>{ let best=null; c.flashes.forEach((f,i)=>{ if(i<3) return; const x=t-f; if(Math.abs(x)<GAP*500 && (best===null||Math.abs(x)<Math.abs(best))) best=x; }); if(best!==null) d.push(best); });
+    if(d.length<6){ $('calInfo').textContent='押した回数が足りませんでした（'+d.length+'回）。もう一度、押してください。'; return; }
+    d.sort((a,b)=>a-b); const med=d[Math.floor(d.length/2)];
+    $('tapOff').value=Math.round(med); try{ localStorage.setItem(TAPOFF_KEY,String(Math.round(med))); }catch(e){}
+    $('calInfo').textContent='測り終わりました：平均 '+Math.round(med)+' ミリ秒（'+(med>=0?'遅れて':'早めに')+'押すくせ）。記録のとき、この分を自動で差し引きます。';
+  }
+})();
+
+// ---- 表示 ----
+function renderAll(){
+  $('nextTag').textContent=nextLabel();
+  const cps=checkpoints(), n=passList().length;
+  $('bPass').textContent=n>=cps.length?'通過（済）':'通過 '+fmtD(cps[n])+'m';
+  const k=t=>marks.filter(m=>m.type===t).length;
+  $('counts').textContent='記録：スタート '+k('start')+'・通過 '+k('pass')+'／'+cps.length+'・ストローク '+k('stroke');
+  updateClock(); if(tab===3) renderResult();
+}
+function renderResult(){
+  const S=summary(), s0=startT(); let h='';
+  if(s0===null) h+='<div class="msg warn">スタートの印がありません。「② 記録」でスタートを押してください。</div>';
+  h+='<div class="msg">'+cardTitle(S)+'（'+S.pool+'）・試技'+S.meta.trial+'</div>';
+  h+='<div class="big">'+(Number.isFinite(S.total)?fmtT(S.total)+'<small> 秒</small>':'—')+'</div>';
+  if(!Number.isFinite(S.total) && s0!==null) h+='<div class="msg warn">ゴール（'+S.D+'m）の通過がまだです。</div>';
+  if(S.laps.length){
+    h+='<h2>ラップ</h2><table><tr><th>距離</th><th>通過</th><th>ラップ</th><th>ストローク</th></tr>';
+    S.laps.forEach(l=>{ h+='<tr><td>'+fmtD(l.d)+'m</td><td>'+fmtT(l.split)+'</td><td><b>'+fmtT(l.lap)+'</b></td><td>'+(Number.isFinite(l.n)?l.n+'回':'—')+'</td></tr>'; });
+    h+='</table>';
+    if(Number.isFinite(S.strokeTotal)) h+='<div class="msg">ストローク数の合計：'+S.strokeTotal+'回（ターン・フィニッシュ中も含む）</div>';
+  }
+  const P=[];
+  if(S.start) P.push(['スタート（0–'+fmtD(S.start.d2)+'m）','',fmtT(S.start.dt)]);
+  S.turns.forEach(o=>{ if(o.turn||o.in||o.out) P.push(['ターン'+o.n, [o.in?'イン '+fmtT(o.in.dt):'',o.out?'アウト '+fmtT(o.out.dt):''].filter(Boolean).join('／'), o.turn?fmtT(o.turn.dt):'—']); });
+  if(S.fin) P.push(['フィニッシュ（'+fmtD(S.fin.d1)+'–'+fmtD(S.fin.d2)+'m）','',fmtT(S.fin.dt)]);
+  if(P.length){ h+='<h2>スタート・ターン・フィニッシュ（秒）</h2><table>'; P.forEach(p=>{ h+='<tr><td>'+p[0]+'</td><td style="color:var(--sub);font-size:12px">'+p[1]+'</td><td><b>'+p[2]+'</b></td></tr>'; }); h+='</table>'; }
+  if(S.strokeRows.length){
+    h+='<h2>区間ごとのストローク</h2><table><tr><th>区間</th><th>泳速度<br>m/秒</th><th>ｽﾄﾛｰｸﾀｲﾑ<br>秒</th><th>ﾃﾝﾎﾟ<br>回/分</th><th>ｽﾄﾛｰｸ長<br>m</th><th>数</th></tr>';
+    S.strokeRows.forEach(r=>{ h+='<tr><td>'+r.name.replace('泳ぎ','').replace(/[（）]/g,'')+'<br><span style="color:var(--sub);font-size:12px">'+fmtD(r.d1)+'–'+fmtD(r.d2)+'m</span></td><td>'+f2(r.vel)+'</td><td>'+f2(r.st)+'</td><td>'+f1(r.tempo)+'</td><td>'+f2(r.sl)+'</td><td>'+(Number.isFinite(r.n)?r.n:'—')+'</td></tr>'; });
+    h+='</table>';
+  }
+  $('resBox').innerHTML=h; rvShow();
+}
+
+// ---- 見直し：印から印へ飛んで、1コマずつ直す ----
+const TN={start:'スタート',pass:'通過',stroke:'ストローク'};
+function rvList(){ return marks.slice().sort((a,b)=>a.t-b.t); }
+function rvShow(){
+  const L=rvList(), i=L.findIndex(m=>m.id===rvSel), m=L[i];
+  if(!m){ $('rvInfo').textContent=L.length?'「前の印」「次の印」で、印の場所へ飛びます（全'+L.length+'個）。':'印がありません。'; return; }
+  const s=startT(), pass=passList().find(p=>p.id===m.id);
+  $('rvInfo').textContent=(i+1)+'／'+L.length+'　'+TN[m.type]+(pass&&Number.isFinite(pass.dist)?' '+fmtD(pass.dist)+'m':'')+'　'+(s!==null?'スタートから '+(m.t-s).toFixed(3)+' 秒':'映像 '+m.t.toFixed(3)+' 秒');
+}
+function rvGo(dir){
+  const L=rvList(); if(!L.length){ rvShow(); return; }
+  let i=L.findIndex(m=>m.id===rvSel);
+  if(i<0){ const base=curT; i=dir>0?L.findIndex(m=>m.t>base+1e-6):(()=>{ let k=-1; L.forEach((m,j)=>{ if(m.t<base-1e-6) k=j; }); return k; })(); if(i<0) i=dir>0?L.length-1:0; }
+  else i=Math.max(0,Math.min(L.length-1,i+dir));
+  rvSel=L[i].id; seekTo(L[i].t); rvShow();
+}
+function rvMove(n){
+  const m=marks.find(x=>x.id===rvSel); if(!m){ $('rvInfo').textContent='先に「前の印」「次の印」で、直したい印を選んでください。'; return; }
+  m.t=Math.max(0,Math.round((m.t+n/fps())*fps())/fps()); store(); seekTo(m.t); renderAll();
+}
+$('rvPrev').onclick=()=>rvGo(-1); $('rvNext').onclick=()=>rvGo(1);
+$('rvM').onclick=()=>rvMove(-1); $('rvP').onclick=()=>rvMove(1);
+$('rvDel').onclick=()=>{ const m=marks.find(x=>x.id===rvSel); if(!m){ $('rvInfo').textContent='先に直したい印を選んでください。'; return; } marks=marks.filter(x=>x!==m); rvSel=null; store(); renderAll(); };
+function shiftAll(n){ if(!marks.length) return; marks.forEach(m=>{ m.t=Math.max(0,Math.round((m.t+n/fps())*fps())/fps()); }); store(); renderAll(); const m=marks.find(x=>x.id===rvSel); if(m) seekTo(m.t); $('rvInfo').textContent='すべての印を '+(n>0?'＋':'−')+'1コマ ずらしました。'; }
+$('allM').onclick=()=>shiftAll(-1); $('allP').onclick=()=>shiftAll(1);
+
+// ---- 結果の共有・保存 ----
+async function saveBlob(name,blob,onFail){
+  if(window.claude && typeof window.claude.use==='function'){
+    let dl=null; try{ dl=await window.claude.use('downloads'); }catch(e){}
+    if(!dl){ onFail&&onFail(); return; }
+    try{ await dl.save({filename:name, data:blob}); $('exWhere').textContent='保存しました。'; }
+    catch(e){ if(e && e.code==='declined') $('exWhere').textContent='保存を取りやめました。'; else onFail&&onFail(); }
+    return;
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },60000);
+  $('exWhere').textContent='保存しました。'+whereSaved();
+}
+function canShareFile(name,blob){
+  if(window.claude) return false;
+  try{ return !!(navigator.canShare && navigator.share && navigator.canShare({files:[new File([blob],name,{type:blob.type})]})); }catch(e){ return false; }
+}
+async function shareFile(name,blob){
+  try{ await navigator.share({files:[new File([blob],name,{type:blob.type})]}); }
+  catch(e){ if(e && e.name==='AbortError') return; $('exWhere').textContent='送る画面を開けませんでした。「端末に保存」を使ってください。'; }
+}
+function whereSaved(){
+  const ua=navigator.userAgent||'';
+  if(/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints>1)) return 'iPhoneでは「ファイル」アプリの「ダウンロード」フォルダに入ります（写真アプリには入りません）。';
+  if(/Android/.test(ua)) return 'Androidでは「ファイル」アプリの「ダウンロード（Download）」フォルダに入ります。';
+  return 'パソコンでは「ダウンロード」フォルダに入ります。';
+}
+$('bTextCopy').onclick=()=>{
+  const t=summaryText();
+  try{ navigator.clipboard.writeText(t).then(()=>{ $('copyMsg').textContent='コピーしました。LINEに貼り付けられます。'; },()=>{ $('copyMsg').innerHTML='<pre></pre>'; $('copyMsg').firstChild.textContent=t; }); }
+  catch(e){ $('copyMsg').innerHTML='<pre></pre>'; $('copyMsg').firstChild.textContent=t; }
+};
+
+// ---- 結果入りの動画を作る（この端末の中で、再生しながら録画する）----
+function pickMime(){
+  if(typeof MediaRecorder==='undefined' || !HTMLCanvasElement.prototype.captureStream) return null;
+  const types=['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  return types.find(t=>{ try{ return MediaRecorder.isTypeSupported(t); }catch(e){ return false; } })||null;
+}
+const seekAndWait=t=>new Promise(r=>{ let done=false; const fin=()=>{ if(!done){ done=true; setTimeout(r,120); } };
+  v.addEventListener('seeked',fin,{once:true}); setTimeout(fin,2000); v.currentTime=t; });
+$('bExport').onclick=async()=>{
+  if(exporting) return;
+  if(!v.src || !(v.duration>0)){ $('exMsg').textContent='先に映像を選んでください。'; return; }
+  if(startT()===null){ $('exMsg').textContent='先にスタートの印をつけてください。'; return; }
+  const mime=pickMime();
+  if(!mime){ $('exMsg').textContent='この画面（ブラウザ）では動画を作れません。SafariかChromeで開いてください。'; return; }
+  const ext=mime.startsWith('video/mp4')?'mp4':'webm';
+  let a=0, b=v.duration;
+  if(marks.length){ const ts=marks.map(m=>m.t); a=Math.max(0,Math.min(...ts)-1); b=Math.min(v.duration,Math.max(...ts)+1); }
+  const sc=Math.min(1,854/Math.max(v.videoWidth,v.videoHeight));   // LINE向け：長い辺854・1.5Mbps
+  const W=Math.round(v.videoWidth*sc/2)*2, H=Math.round(v.videoHeight*sc/2)*2;
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
+  buildOverlay();
+  const paint=(t,sa)=>{ x.drawImage(v,0,0,W,H); drawOverlay(x,W,H,t,sa); };
+  let rec; try{ rec=new MediaRecorder(c.captureStream(30),{mimeType:mime, videoBitsPerSecond:1500000}); }
+  catch(e){ $('exMsg').textContent='この画面（ブラウザ）では動画を作れません。'; return; }
+  const chunks=[]; rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+  const stopped=new Promise(r=>{ rec.onstop=r; });
+  const oldRate=v.playbackRate||0.5;
+  exporting={stop:false};
+  $('bExport').disabled=true; $('bExportStop').hidden=false; $('exProg').hidden=false; $('exProg').value=0; $('exDone').hidden=true;
+  $('exMsg').textContent='動画を作っています…（'+(b-a).toFixed(0)+'秒ほど。この画面を開いたままにしてください）';
+  v.pause(); pendingT=null;
+  await seekAndWait(a); paint(v.currentTime);
+  rec.start(500);
+  v.playbackRate=1; v.muted=true;
+  try{ await v.play(); }catch(e){}
+  await new Promise(resolve=>{
+    const tick=(now,meta)=>{
+      if(exporting.stop){ resolve(); return; }
+      paint(meta.mediaTime); $('exProg').value=Math.min(1,(meta.mediaTime-a)/(b-a));
+      if(meta.mediaTime>=b-1e-3){ resolve(); return; }
+      v.requestVideoFrameCallback(tick);
+    };
+    if(hasRVFC) v.requestVideoFrameCallback(tick); else { const iv=setInterval(()=>{ if(exporting.stop||v.currentTime>=b-1e-3||v.ended){ clearInterval(iv); resolve(); } else { paint(v.currentTime); $('exProg').value=Math.min(1,(v.currentTime-a)/(b-a)); } },33); }
+    v.addEventListener('ended',resolve,{once:true});
+  });
+  v.pause(); applySound(); v.playbackRate=oldRate;
+  if(!exporting.stop){ const t=v.currentTime, a0=(OV&&OV.finT!==null)?Math.max(0,Math.min(1,(t-(OV.finT+1))/0.4)):0;
+    for(let i=0;i<180 && !exporting.stop;i++){ paint(t, Math.min(1,a0+i/12)); await new Promise(r=>setTimeout(r,33)); } }
+  rec.stop(); await stopped;
+  const cancelled=exporting.stop; exporting=null;
+  $('bExport').disabled=false; $('bExportStop').hidden=true; $('exProg').hidden=true;
+  if(cancelled){ $('exMsg').textContent='中止しました。'; return; }
+  let blob=new Blob(chunks,{type:mime.split(';')[0]});
+  if(ext==='mp4'){ try{ blob=new Blob([defragMp4(new Uint8Array(await blob.arrayBuffer()))],{type:'video/mp4'}); }catch(e){ console.warn('mp4の並べ直しに失敗',e); } }
+  const m=meta(), name='結果入り動画_'+(m.subj||'ID未入力')+'_'+$('evDist').value+'m'+m.stroke+'_試技'+m.trial+'.'+ext;
+  $('exMsg').textContent='できました（'+(blob.size/1048576).toFixed(1)+' MB）。'+(ext==='webm'?'webm形式は、iPhoneのLINEで再生できないことがあります。':'');
+  lastExport={name,blob};
+  const ev=$('exVideo'); if(ev.dataset.url) URL.revokeObjectURL(ev.dataset.url);
+  ev.dataset.url=URL.createObjectURL(blob); ev.src=ev.dataset.url;
+  $('exDone').hidden=false; $('bExShare').hidden=!canShareFile(name,blob);
+  $('exWhere').textContent=$('bExShare').hidden?'「端末に保存」を押してください。'+whereSaved():'「LINEなどで送る」を押すと、送り先にLINEを選べます。';
+};
+$('bExShare').onclick=()=>{ if(lastExport) shareFile(lastExport.name,lastExport.blob); };
+$('bExSave').onclick=()=>{ if(lastExport) saveBlob(lastExport.name,lastExport.blob,()=>{ $('exWhere').textContent='この画面では保存できませんでした。'; }); };
+$('bExportStop').onclick=()=>{ if(exporting) exporting.stop=true; };
+
+v.playbackRate=0.5; markRate(); renderAll();
+})();
+</script>
+</body>
+</html>
