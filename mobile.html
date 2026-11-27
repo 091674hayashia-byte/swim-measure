@@ -97,6 +97,7 @@ pre{white-space:pre-wrap;font-size:13px;background:var(--btn);padding:8px;border
   <div class="grid2">
     <div><label for="evDist">距離</label><select id="evDist"><option>25</option><option>50</option><option>75</option><option selected>100</option><option>150</option><option>200</option><option>300</option><option>400</option><option>800</option><option>1500</option></select></div>
     <div><label for="pool">プール</label><select id="pool"><option value="25" selected>短水路（25m）</option><option value="50">長水路（50m）</option></select></div>
+    <div id="splitWrap" hidden style="grid-column:1/3"><label for="split">通過の細かさ（長水路）</label><select id="split"><option value="fine" selected>細かく（15・25・35・45mと、2本目は65・75・85・95m）</option><option value="mid">25mだけ（15・25・45mと、2本目は65・75・95m）</option></select><div class="msg">印をつける前に決めてください。途中で変えると、通過の距離がずれます。</div></div>
     <div><label for="stroke">泳法</label><select id="stroke"><option>自由形</option><option>背泳ぎ</option><option>平泳ぎ</option><option>バタフライ</option><option>個人メドレー</option></select></div>
     <div><label for="trial">試技の番号</label><input id="trial" type="number" min="1" value="1" inputmode="numeric"></div>
   </div>
@@ -222,6 +223,7 @@ let dateStr='';
 function meta(){ return {subj:$('subj').value.trim(), stroke:$('stroke').value, trial:$('trial').value||'1', date:dateStr}; }
 
 // ---- 種目とプールから、局面と区切り地点を作る ----
+function splitPts(){ if(cfg().L!==50) return []; return $('split').value==='mid'?[25]:[25,35]; }
 function phases(){
   const {D,L}=cfg(), s=PH.s, ti=PH.ti, to=PH.to, f=PH.f;
   const laps=Math.max(1,Math.ceil(D/L-1e-9)), out=[]; let turn=0;
@@ -229,7 +231,10 @@ function phases(){
     const a=k*L, b=Math.min((k+1)*L,D), last=(k===laps-1);
     const sw1=(k===0)?a+s:a+to, sw2=last?b-f:b-ti;
     if(k===0 && s>0) out.push({kind:'start', name:'スタート', d1:a, d2:Math.min(b,a+s)});
-    if(sw2>sw1) out.push({kind:'swim', name:'泳ぎ（'+(k+1)+'本目）', d1:sw1, d2:sw2});
+    if(sw2>sw1){   // 長水路：泳ぎの局面を、壁から25m・35m（細かく）または25m（25mだけ）で区切る
+      const pts=[sw1, ...splitPts().map(p=>a+p).filter(x=>x>sw1+1e-6&&x<sw2-1e-6), sw2];
+      for(let i=0;i<pts.length-1;i++) out.push({kind:'swim', name:'泳ぎ（'+(k+1)+'本目）', d1:pts[i], d2:pts[i+1]});
+    }
     if(!last){ turn++;
       if(ti>0) out.push({kind:'in', name:'ターン'+turn+' イン', d1:b-ti, d2:b, turn});
       if(to>0) out.push({kind:'out', name:'ターン'+turn+' アウト', d1:b, d2:b+to, turn});
@@ -528,11 +533,11 @@ function defragMp4(u){
 }
 
 // ---- 保存（この端末のブラウザの中だけ）----
-function store(){ if(!fileKey) return; try{ localStorage.setItem(fileKey, JSON.stringify({marks,nextId,fps:fpsVal,meta:meta(),D:$('evDist').value,L:$('pool').value})); }catch(e){} }
+function store(){ if(!fileKey) return; try{ localStorage.setItem(fileKey, JSON.stringify({marks,nextId,fps:fpsVal,meta:meta(),D:$('evDist').value,L:$('pool').value,S:$('split').value})); }catch(e){} }
 function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; nextId=o.nextId||marks.length+1;
   if(o.meta){ $('subj').value=o.meta.subj||''; $('stroke').value=o.meta.stroke||'自由形'; $('trial').value=o.meta.trial||1; }
-  if(o.D) $('evDist').value=o.D; if(o.L) $('pool').value=o.L; if(o.fps){ fpsVal=o.fps; $('fps').value=o.fps; } return marks.length; }catch(e){ return 0; } }
-['evDist','pool','stroke','trial','subj','fps'].forEach(id=>$(id).addEventListener('change',()=>{ if(id==='fps'){ const f=parseFloat($('fps').value); if(f>0) fpsVal=f; } store(); renderAll(); }));
+  if(o.D) $('evDist').value=o.D; if(o.L) $('pool').value=o.L; if(o.S) $('split').value=o.S; if(o.fps){ fpsVal=o.fps; $('fps').value=o.fps; } return marks.length; }catch(e){ return 0; } }
+['evDist','pool','split','stroke','trial','subj','fps'].forEach(id=>$(id).addEventListener('change',()=>{ if(id==='fps'){ const f=parseFloat($('fps').value); if(f>0) fpsVal=f; } store(); renderAll(); }));
 
 // ---- タブ ----
 function showTab(n){
@@ -715,6 +720,7 @@ function renderAll(){
   $('bPass').textContent=n>=cps.length?'通過（済）':'通過 '+fmtD(cps[n])+'m';
   const k=t=>marks.filter(m=>m.type===t).length;
   $('counts').textContent='記録：スタート '+k('start')+'・通過 '+k('pass')+'／'+cps.length+'・ストローク '+k('stroke');
+  $('splitWrap').hidden=(cfg().L!==50);
   renderTicks(); updateClock(); if(tab===3) renderResult();
 }
 function renderResult(){

@@ -326,6 +326,9 @@ section{min-width:0}
       <label>プール
         <select id="pool"><option value="25" selected>短水路（25 m）</option><option value="50">長水路（50 m）</option></select>
       </label>
+      <label id="swimSplitWrap" hidden>通過の細かさ（長水路）
+        <select id="swimSplit"><option value="fine" selected>細かく（15・25・35・45mと、2本目は65・75・85・95m）</option><option value="mid">25mだけ（15・25・45mと、2本目は65・75・95m）</option></select>
+      </label>
     </div>
     <div class="row">
       <span class="muted">局面の長さ：</span>
@@ -491,7 +494,7 @@ const startT=()=>{ const s=marks.find(m=>m.type==='start'); return s?s.t:null; }
 const rel=t=>{ const s=startT(); return s===null?NaN:t-s; };
 
 // ---- 保存（このブラウザのみ）----
-const SET_IDS=['evDist','pool','phStart','phIn','phOut','phFin','distMode','sigDist'];
+const SET_IDS=['evDist','pool','swimSplit','phStart','phIn','phOut','phFin','distMode','sigDist'];
 function store(noHist){ if(!fileKey) return; if(noHist) lastSnap=snapNow(); else trackHistory(); try{ const set={}; SET_IDS.forEach(id=>set[id]=$(id).value);
   localStorage.setItem(fileKey, JSON.stringify({marks, nextId, meta:readMeta(), set, dist:$('dist').value, distStep:$('distStep').value, fps:$('fps').value})); }catch(e){} }
 function restore(){ try{ const s=localStorage.getItem(fileKey); if(!s) return 0; const o=JSON.parse(s); marks=o.marks||[]; nextId=o.nextId||marks.length+1;
@@ -515,7 +518,11 @@ function phases(){
     const a=k*L, b=Math.min((k+1)*L,D), last=(k===laps-1);
     const sw1=(k===0)?a+s:a+to, sw2=last?b-f:b-ti;
     if(k===0 && s>0) out.push({kind:'start', name:'スタート', d1:a, d2:Math.min(b,a+s)});
-    if(sw2>sw1) out.push({kind:'swim', name:'泳ぎ（'+(k+1)+'本目）', d1:sw1, d2:sw2});
+    if(sw2>sw1){   // 長水路：泳ぎの局面を、壁から25m・35m（細かく）または25m（25mだけ）で区切る
+      const sp=(L===50)?($('swimSplit').value==='mid'?[25]:[25,35]):[];
+      const pts=[sw1, ...sp.map(p=>a+p).filter(x=>x>sw1+1e-6&&x<sw2-1e-6), sw2];
+      for(let i=0;i<pts.length-1;i++) out.push({kind:'swim', name:'泳ぎ（'+(k+1)+'本目）', d1:pts[i], d2:pts[i+1]});
+    }
     if(!last){ turn++;
       if(ti>0) out.push({kind:'in', name:'ターン'+turn+' イン', d1:b-ti, d2:b, turn});
       if(to>0) out.push({kind:'out', name:'ターン'+turn+' アウト', d1:b, d2:b+to, turn});
@@ -540,6 +547,7 @@ function renderPlan(){
   const nL=walls.length;
   const shown=c.slice(0,24).map(d=>walls.includes(d)?'<b>'+fmtD(d)+'（壁）</b>':fmtD(d)).join('・')+(c.length>24?' …（全'+c.length+'地点）':'');
   $('planInfo').innerHTML=(L===25?'短水路':'長水路')+' '+D+' m（'+nL+'本・ターン'+(nL-1)+'回）　区切り地点（m）：'+shown;
+  $('swimSplitWrap').hidden=(L!==50);
   $('distStepWrap').style.display=$('distMode').value==='step'?'':'none';
 }
 
